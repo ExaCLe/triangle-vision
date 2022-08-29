@@ -1,5 +1,9 @@
+:root {
+  --font-size: 25px; 
+}
+
 .triangleView {
-  background-color: blue;
+  position: absolute;
 }
 
 #circle {
@@ -11,13 +15,14 @@
 #triangle {
   width: 0;
   height: 0;
-  border-left: 100px solid transparent;
-  border-right: 100px solid transparent;
-  border-bottom: 100px solid pink;
+  border-left: 0px solid transparent;
+  border-right: 0px solid transparent;
+  border-bottom: 0px solid transparent;
+  border-top: 0px solid transparent;
   z-index: 1;
   position: absolute;
-  left: 100px; 
 }
+
 
 #vline {
   width: 3px; 
@@ -35,4 +40,52 @@
   z-index: 2;
   background-color: black; 
   top: 250px; 
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  padding-left: 50px; 
+  width: 50%; 
+  max-width: 800px;
+}
+
+form > div {
+  display: flex; 
+  margin-top: 10px;
+  flex-direction: row; 
+  justify-content: space-between; 
+  width: 100%; 
+}
+
+form > button {
+  margin-top: 10px; 
+}
+
+form * {
+  font-size: var(--font-size);
+}
+
+#rootDiv {
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center; 
+  width: 100vw; 
+  height: 100vh; 
+}
+
+body {
+  font-size: var(--font-size);
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+button {
+  font-size: var(--font-size);
 }

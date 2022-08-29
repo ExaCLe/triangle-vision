@@ -1,20 +1,27 @@
-const Content = ({ sideLength, diameter, colorCircle, colorTriangle }) => {
-  const triangleHeight = Math.sqrt(3 * Math.pow(sideLength / 2, 2));
+import Triangle from "./Triangle";
 
+const Content = ({
+  sideLength,
+  diameter,
+  colorCircle,
+  colorTriangle,
+  orientation,
+}) => {
   return (
     <>
-      <div className="triangleView">
-        <div
-          id="triangle"
-          style={{
-            borderBottomWidth: triangleHeight,
-            borderRightWidth: sideLength / 2,
-            borderLeftWidth: sideLength / 2,
-            left: diameter / 2 - sideLength / 2,
-            top: diameter / 2 - triangleHeight / 2,
-            borderBottomColor: colorTriangle,
-          }}
-        ></div>
+      <div
+        className="triangleView"
+        style={{
+          left: window.innerWidth / 2 - diameter / 2,
+          top: window.innerHeight / 2 - diameter / 2,
+        }}
+      >
+        <Triangle
+          diameter={diameter}
+          sideLength={sideLength}
+          color={colorTriangle}
+          orientation={orientation}
+        />
         <div
           id="circle"
           style={{
