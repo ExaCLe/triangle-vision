@@ -5,6 +5,7 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
     return (
       <div
         id="triangle"
+        data-testid="triangleN"
         style={{
           borderBottomWidth: triangleHeight,
           borderRightWidth: sideLength / 2,
@@ -19,6 +20,7 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
     return (
       <div
         id="triangle"
+        data-testid="triangleS"
         style={{
           borderTopWidth: triangleHeight,
           borderRightWidth: sideLength / 2,
@@ -33,6 +35,7 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
     return (
       <div
         id="triangle"
+        data-testid="triangleE"
         style={{
           borderBottomWidth: sideLength / 2,
           borderLeftWidth: triangleHeight,
@@ -48,6 +51,7 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
     return (
       <div
         id="triangle"
+        data-testid="triangleW"
         style={{
           borderBottomWidth: sideLength / 2,
           borderRightWidth: triangleHeight,
