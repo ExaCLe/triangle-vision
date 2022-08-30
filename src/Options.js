@@ -11,14 +11,14 @@ class Options extends Component {
   }
 
   handleFileChange = (e) => {
-    this.props.setError("");
+    this.props.setError(null);
     if (e.target.files.length) {
       const inputFile = e.target.files[0];
 
       // assure the correct file type
       const fileExtension = inputFile?.type.split("/")[1];
       if (!allowedExtensions.includes(fileExtension)) {
-        this.props.setError("Please input a csv file");
+        this.props.setError("Invalid file extension");
         return;
       }
 
@@ -32,7 +32,7 @@ class Options extends Component {
         this.props.setData(results.data);
       },
       error: (err) => {
-        console.error(err);
+        setError(err);
       },
       header: true,
       dynamicTyping: true,
@@ -52,6 +52,7 @@ class Options extends Component {
               id="csvInput"
               name="file"
               type="File"
+              data-testid="fileInput"
             />
           </div>
           <div>
@@ -59,6 +60,7 @@ class Options extends Component {
             <input
               type="number"
               id="breakInput"
+              data-testid="breakInput"
               value={this.props.breakInBetween}
               className="numberInput"
               onChange={(e) => this.props.setBreakInBetween(e.target.value)}
@@ -70,6 +72,7 @@ class Options extends Component {
             <input
               type="text"
               id="filenameInput"
+              data-testid="filenameInput"
               value={this.props.filename}
               onChange={(e) => this.props.setFilename(e.target.value)}
               placeholder="Name der Ausgabedatei"
@@ -80,6 +83,7 @@ class Options extends Component {
             <input
               type="color"
               id="backgroundColorInput"
+              data-testid="backgroundColorInput"
               value={this.props.backgroundColor}
               onChange={(e) => this.props.setBackgroundColor(e.target.value)}
               placeholder="Background color"
