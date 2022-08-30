@@ -24,6 +24,7 @@ const Content = ({
         />
         <div
           id="circle"
+          data-testid="circle"
           style={{
             width: diameter,
             height: diameter,
