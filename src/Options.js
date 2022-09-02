@@ -11,6 +11,7 @@ class Options extends Component {
   }
 
   handleFileChange = (e) => {
+    console.log("Called with new file");
     this.props.setError(null);
     if (e.target.files.length) {
       const inputFile = e.target.files[0];
@@ -32,7 +33,7 @@ class Options extends Component {
         this.props.setData(results.data);
       },
       error: (err) => {
-        setError(err);
+        this.props.setError(err);
       },
       header: true,
       dynamicTyping: true,
@@ -42,7 +43,11 @@ class Options extends Component {
   render() {
     return (
       <>
-        <form>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+          }}
+        >
           <div>
             <label htmlFor="csvInput">
               <span>Upload a csv file</span>

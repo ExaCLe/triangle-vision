@@ -1,5 +1,4 @@
 export const invertColor = (hex) => {
-  assert;
   if (hex.indexOf("#") === 0 && (hex.length === 7 || hex.length === 4)) {
     hex = hex.slice(1);
 
