@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 
-import Content from "./Content";
+import Content from "../components/Content";
 
 test("renders a circle", () => {
   const { getByTestId } = render(

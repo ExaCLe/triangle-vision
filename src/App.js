@@ -1,7 +1,7 @@
-import "./App.css";
+import "./css/App.css";
 import { useEffect, useState, useRef } from "react";
-import Content from "./Content";
-import Options from "./Options";
+import Content from "./components/Content";
+import Options from "./components/Options";
 import { CSVLink, CSVDownload } from "react-csv";
 import { invertColor } from "./helpers";
 

@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import Triangle from "./Triangle";
+import Triangle from "../components/Triangle";
 
 function extractFloatFromPx(str) {
   return parseFloat(str.replace("px", ""));

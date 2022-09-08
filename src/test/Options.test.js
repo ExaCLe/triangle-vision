@@ -1,6 +1,6 @@
 import { render, fireEvent } from "@testing-library/react";
 
-import Options from "./Options";
+import Options from "../components/Options";
 
 describe("renders the needed elements", () => {
   test("renders the file input", () => {

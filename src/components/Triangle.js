@@ -1,5 +1,7 @@
 const Triangle = ({ sideLength, diameter, color, orientation }) => {
   const triangleHeight = 0.866 * sideLength; // Math.sqrt(3 * Math.pow(sideLength / 2, 2));
+  const halfSideLength = sideLength / 2;
+  const radius = diameter / 2;
 
   if (orientation === "N") {
     return (
@@ -8,11 +10,11 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
         data-testid="triangleN"
         style={{
           borderBottomWidth: triangleHeight,
-          borderRightWidth: sideLength / 2,
-          borderLeftWidth: sideLength / 2,
+          borderRightWidth: halfSideLength,
+          borderLeftWidth: halfSideLength,
           borderBottomColor: color,
-          left: diameter / 2 - sideLength / 2,
-          top: diameter / 2 - triangleHeight * 0.7113,
+          left: radius - halfSideLength,
+          top: radius - triangleHeight * 0.7113,
         }}
       ></div>
     );
@@ -23,11 +25,11 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
         data-testid="triangleS"
         style={{
           borderTopWidth: triangleHeight,
-          borderRightWidth: sideLength / 2,
-          borderLeftWidth: sideLength / 2,
+          borderRightWidth: halfSideLength,
+          borderLeftWidth: halfSideLength,
           borderTopColor: color,
-          left: diameter / 2 - sideLength / 2,
-          top: diameter / 2 - triangleHeight * (1 - 0.7113),
+          left: radius - halfSideLength,
+          top: radius - triangleHeight * (1 - 0.7113),
         }}
       ></div>
     );
@@ -37,13 +39,13 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
         id="triangle"
         data-testid="triangleE"
         style={{
-          borderBottomWidth: sideLength / 2,
+          borderBottomWidth: halfSideLength,
           borderLeftWidth: triangleHeight,
-          borderTopWidth: sideLength / 2,
+          borderTopWidth: halfSideLength,
           borderRight: 0,
           borderLeftColor: color,
-          top: diameter / 2 - sideLength / 2,
-          left: diameter / 2 - triangleHeight * (1 - 0.7113),
+          top: radius - halfSideLength,
+          left: radius - triangleHeight * (1 - 0.7113),
         }}
       ></div>
     );
@@ -53,12 +55,12 @@ const Triangle = ({ sideLength, diameter, color, orientation }) => {
         id="triangle"
         data-testid="triangleW"
         style={{
-          borderBottomWidth: sideLength / 2,
+          borderBottomWidth: halfSideLength,
           borderRightWidth: triangleHeight,
-          borderTopWidth: sideLength / 2,
+          borderTopWidth: halfSideLength,
           borderRightColor: color,
-          left: diameter / 2 - triangleHeight * 0.7113,
-          top: diameter / 2 - sideLength / 2,
+          left: radius - triangleHeight * 0.7113,
+          top: radius - halfSideLength,
         }}
       ></div>
     );

@@ -1,4 +1,4 @@
-import { invertColor } from "./helpers";
+import { invertColor } from "../helpers";
 
 describe("test inversion of color", () => {
   test("inverts the color", () => {
