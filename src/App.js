@@ -2,160 +2,178 @@ import "./css/App.css";
 import { useEffect, useState, useRef } from "react";
 import Content from "./components/Content";
 import Options from "./components/Options";
-import { CSVLink, CSVDownload } from "react-csv";
 import { invertColor } from "./helpers";
+import {
+  APP_STATE,
+  startResults,
+  ARROW_UP,
+  ARROW_DOWN,
+  ARROW_LEFT,
+  ARROW_RIGHT,
+} from "./AppConstants";
+import FinalScore from "./components/FinalScore";
+import AnswerFeedback from "./components/AnswerFeedback";
 
-const ARROW_UP = 38;
-const ARROW_DOWN = 40;
-const ARROW_LEFT = 37;
-const ARROW_RIGHT = 39;
-
-const startResults = {
-  correct: 0,
-  false: 0,
-  history: [
-    [
-      "TriangleSideLength",
-      "CircleDiameter",
-      "TriangleRGB",
-      "CircleRGB",
-      "duration",
-      "orientation",
-      "answer",
-      "answerTime",
-    ],
-  ],
-};
+const {
+  OPTIONS,
+  SHOW_TRIANGLE,
+  WAIT_FOR_ANSWER,
+  SHOW_ANSWER,
+  SHOW_FINAL_SCORE,
+} = APP_STATE;
 
 function App() {
-  // "options" = choosing options, "showTriangle" = showing triangle,
-  // "waitResponse" = waiting for response,
-  // "showCorrectAnswer" = showing correct answer,
-  // "showIncorrectAnser" = showing incorrect answer,
-  // "showFinalScore" = showing final score
-  const [testing, setTesting] = useState("options");
+  // internal state
+  const [appState, setAppState] = useState(OPTIONS);
+  const [error, setError] = useState("");
+  const [index, setIndex] = useState(0);
+  const [triangleTimer, setTimer] = useState(null);
+
+  // testing properties
+  const [duration, setDuration] = useState(0);
+  const [breakInBetween, setBreakInBetween] = useState(0);
+
+  // collected testing data
+  const [results, setResults] = useState(startResults);
+  const [answerTime, setAnswerTime] = useState(0);
+  const [answerWasCorrect, setAnswerWasCorrect] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+
+  // other options
+  const [backgroundColor, setBackgroundColor] = useState("#000000");
+  const [filename, setFilename] = useState("results.csv");
+
+  // Triangle and Circle properties
+  const [data, setData] = useState([]);
+  const [orientation, setOrientation] = useState("W");
   const [sideLength, setSideLength] = useState(200);
   const [diameter, setDiameter] = useState(500);
   const [colorTriangle, setColorTriangle] = useState("pink");
   const [colorCircle, setColorCircle] = useState("red");
-  const [error, setError] = useState("");
-  const [data, setData] = useState([]);
-  const [index, setIndex] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [breakInBetween, setBreakInBetween] = useState(0);
-  const [orientation, setOrientation] = useState("W");
-  const [results, setResults] = useState(startResults);
-  const [timer, setTimer] = useState(null);
-  const [backgroundColor, setBackgroundColor] = useState("#000000");
-  const [filename, setFilename] = useState("results.csv");
-  const [startTime, setStartTime] = useState(null);
-  const [answerTime, setAnswerTime] = useState(0);
 
-  const reset = () => {
+  // Change listener for the index and data to update the triangle and circle in the state/UI
+  useEffect(() => {
+    if (data.length > 0) {
+      const dataSet = data[index];
+      setSideLength(dataSet.TriangleSideLength);
+      setDiameter(dataSet.CircleDiameter);
+      setColorCircle(`rgb(${dataSet.CircleRGB})`);
+      setColorTriangle(`rgb(${dataSet.TriangleRGB})`);
+      setOrientation(dataSet.orientation);
+      setDuration(dataSet.duration);
+    }
+  }, [data, index]);
+
+  // Gets the focus on the window to listen for key presses
+  useEffect(() => {
+    ref.current.focus();
+  }, [appState]);
+
+  /**
+   * Resets the state of the app to the initial state
+   */
+  const resetApp = () => {
     setResults(startResults);
     setIndex(0);
-    setTesting("options");
+    setAppState(OPTIONS);
     setData([]);
   };
 
   const ref = useRef(null);
 
-  const showNewTriangle = () => {
-    setTesting("showTriangle");
-    setStartTime(new Date());
-    setTimer(
-      setTimeout(() => {
-        setTesting("waitResponse");
-      }, duration)
-    );
-  };
-
+  /**
+   * Sets a timer and records the current time before changing the app state. This is only done if the data is not empty.
+   */
   const startTest = () => {
     if (data.length === 0) {
       return;
     }
-    showNewTriangle();
+    setAppState(SHOW_TRIANGLE);
+    setStartTime(new Date());
+    setTimer(
+      setTimeout(() => {
+        setAppState(WAIT_FOR_ANSWER);
+      }, duration)
+    );
   };
 
-  useEffect(() => {
-    if (data.length > 0) {
-      setSideLength(data[index].TriangleSideLength);
-      setDiameter(data[index].CircleDiameter);
-      setColorCircle(`rgb(${data[index].CircleRGB})`);
-      setColorTriangle(`rgb(${data[index].TriangleRGB})`);
-      setOrientation(data[index].orientation);
-      setDuration(data[index].duration);
-    }
-  }, [data, index]);
-
-  useEffect(() => {
-    ref.current.focus();
-  }, [testing]);
-
+  /**
+   * Handles the logic of the key presses to get to the next triangle question if the app is in the correct state.
+   *
+   * If the app is not in the correct state, it will not do anything.
+   * If no arrow key is pressed, it will not do anything.
+   * @param {Event} e the keyboard event
+   */
   const handleKeyDown = (e) => {
     const code = e.keyCode;
-    if (testing !== "waitResponse" && testing !== "showTriangle") return;
-    clearTimeout(timer);
+
+    // do nothing if the app is not in the correct state or if the key pressed is not an arrow key
+    if (appState !== WAIT_FOR_ANSWER && appState !== SHOW_TRIANGLE) return;
+    if (
+      code !== ARROW_UP &&
+      code !== ARROW_DOWN &&
+      code !== ARROW_LEFT &&
+      code !== ARROW_RIGHT
+    )
+      return;
+
+    // the timer for hiding the triangle is not needed anymore
+    clearTimeout(triangleTimer);
+
+    // measure the response time
     const responseTime = new Date() - startTime;
     setAnswerTime(responseTime);
-    let answer = undefined;
-    if (code === ARROW_UP) {
-      if (orientation === "N") answer = "correct";
-      else answer = "false";
-    } else if (code === ARROW_DOWN) {
-      if (orientation === "S") answer = "correct";
-      else answer = "false";
-    } else if (code === ARROW_LEFT) {
-      if (orientation === "W") answer = "correct";
-      else answer = "false";
-    } else if (code === ARROW_RIGHT) {
-      if (orientation === "E") answer = "correct";
-      else answer = "false";
+
+    // figure out if the answer was correct
+    let correct = false;
+    if (code === ARROW_UP && orientation === "N") {
+      correct = true;
+    } else if (code === ARROW_DOWN && orientation === "S") {
+      correct = true;
+    } else if ((code === ARROW_LEFT, orientation === "W")) {
+      correct = true;
+    } else if (code === ARROW_RIGHT && orientation === "E") {
+      correct = true;
     }
-    let falseAnswer = 0,
-      correctAnswer = 0;
-    if (answer === "correct") {
-      setTesting("showCorrectAnswer");
-      correctAnswer++;
-    }
-    if (answer === "false") {
-      setTesting("showIncorrectAnswer");
-      falseAnswer++;
-    }
-    if (answer === "correct" || answer === "false") {
-      setResults({
-        ...results,
-        correct: results.correct + correctAnswer,
-        false: results.false + falseAnswer,
-        history: [
-          ...results.history,
-          [
-            sideLength,
-            diameter,
-            colorTriangle,
-            colorCircle,
-            duration,
-            orientation,
-            "correct",
-            responseTime,
-          ],
+
+    // update the state to show the correctness of the answer to the user
+    setAppState(SHOW_ANSWER);
+    setAnswerWasCorrect(correct);
+
+    // record the results for later export
+    setResults({
+      ...results,
+      correct: results.correct + (correct ? 1 : 0),
+      false: results.false + (correct ? 0 : 1),
+      history: [
+        ...results.history,
+        [
+          sideLength,
+          diameter,
+          colorTriangle,
+          colorCircle,
+          duration,
+          orientation,
+          "correct",
+          responseTime,
         ],
-      });
-    }
-    if (answer !== undefined) {
-      if (index === data.length - 1) {
-        setTesting("showFinalScore");
-      } else {
-        setIndex(index + 1);
-        setTimeout(() => {
-          showNewTriangle();
-        }, breakInBetween);
-      }
+      ],
+    });
+
+    // show the next triangle or the final score if there are no more triangles
+    if (index === data.length - 1) {
+      setAppState(SHOW_FINAL_SCORE);
+    } else {
+      setIndex(index + 1);
+      setTimeout(() => {
+        startTest();
+      }, breakInBetween);
     }
   };
 
+  // determine the content to show based on the app state
   let content;
-  if (testing === "showTriangle") {
+  if (appState === SHOW_TRIANGLE) {
     content = (
       <Content
         sideLength={sideLength}
@@ -165,7 +183,7 @@ function App() {
         orientation={orientation}
       ></Content>
     );
-  } else if (testing === "options") {
+  } else if (appState === OPTIONS) {
     content = (
       <Options
         setData={setData}
@@ -181,49 +199,24 @@ function App() {
         filename={filename}
       ></Options>
     );
-  } else if (testing === "waitResponse") {
+  } else if (appState === WAIT_FOR_ANSWER) {
     content = <p style={{ fontSize: 50 }}>?</p>;
-  } else if (testing === "showCorrectAnswer") {
+  } else if (appState === SHOW_ANSWER) {
+    content = <AnswerFeedback answerWasCorrect answerTime={answerTime} />;
+  } else if (appState === SHOW_FINAL_SCORE) {
     content = (
-      <p style={{ color: "green", fontSize: 100 }}>
-        &#10003; Correct! {answerTime} ms.
-      </p>
-    );
-  } else if (testing === "showIncorrectAnswer") {
-    content = (
-      <p style={{ color: "red", fontSize: 100 }}>
-        &#10060; Incorrect! {answerTime} ms.
-      </p>
-    );
-  } else if (testing === "showFinalScore") {
-    const score = Math.round((results.correct / data.length) * 100);
-    content = (
-      <div className="container">
-        <p>
-          You got {results.correct} correct and {results.false} incorrect.
-        </p>
-        <p
-          style={{
-            color: score >= 75 ? "green" : "red",
-          }}
-        >
-          You got {score} % correct.
-        </p>
-        <button onClick={reset}>Restart</button>
-        <CSVLink
-          style={{
-            color: invertColor(backgroundColor),
-            paddingTop: 10,
-          }}
-          data={results.history}
-          filename="results.csv"
-        >
-          Download Results
-        </CSVLink>
-      </div>
+      <FinalScore
+        correct={results.correct}
+        incorrect={results.false}
+        backgroundColor={backgroundColor}
+        history={results.history}
+        filename={filename}
+        resetApp={resetApp}
+      />
     );
   }
 
+  // wrap the content for better styling and to listen for key presses
   return (
     <div
       id="rootDiv"
