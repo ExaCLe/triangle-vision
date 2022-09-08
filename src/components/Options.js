@@ -10,8 +10,11 @@ class Options extends Component {
     super(props);
   }
 
+  /**
+   * Checks for correct file extension and gets the file content
+   * @param {Event} e
+   */
   handleFileChange = (e) => {
-    console.log("Called with new file");
     this.props.setError(null);
     if (e.target.files.length) {
       const inputFile = e.target.files[0];
@@ -23,15 +26,20 @@ class Options extends Component {
         return;
       }
 
-      this.parseFile(inputFile);
+      this.parseFile(inputFile, (results) => {
+        this.props.setData(results.data);
+      });
     }
   };
-  parseFile = (file) => {
+
+  /**
+   * Parses the csv file and calls the callback function on success.
+   * @param {File} file the file object to parse
+   * @param {ResultsCallback} onComplete function that is called with the parsed results as argument
+   */
+  parseFile = (file, onComplete) => {
     parse(file, {
-      complete: (results) => {
-        console.log(results.data);
-        this.props.setData(results.data);
-      },
+      complete: onComplete,
       error: (err) => {
         this.props.setError(err);
       },
@@ -48,6 +56,7 @@ class Options extends Component {
             e.preventDefault();
           }}
         >
+          {/* File Input */}
           <div>
             <label htmlFor="csvInput">
               <span>Upload a csv file</span>
@@ -60,6 +69,7 @@ class Options extends Component {
               data-testid="fileInput"
             />
           </div>
+          {/* Break Input */}
           <div>
             <label htmlFor="breakInput">Pause zwischen den Fragen in ms:</label>
             <input
@@ -72,6 +82,7 @@ class Options extends Component {
               placeholder="Break in between the answers in milliseconds"
             />
           </div>
+          {/* Result File Name Input */}
           <div>
             <label htmlFor="filenameInput">Name der Ausgabedatei:</label>
             <input
@@ -83,6 +94,7 @@ class Options extends Component {
               placeholder="Name der Ausgabedatei"
             />
           </div>
+          {/* Background Color Picker */}
           <div>
             <label htmlFor="backgroundColorInput">Hintergrundfarbe:</label>
             <input
@@ -94,6 +106,7 @@ class Options extends Component {
               placeholder="Background color"
             />
           </div>
+          {/* Start Button */}
           <button onClick={this.props.startTest}>Start</button>
         </form>
       </>
