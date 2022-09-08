@@ -1,19 +1,16 @@
 import Triangle from "./Triangle";
 
-const Content = ({
-  sideLength,
-  diameter,
-  colorCircle,
-  colorTriangle,
-  orientation,
-}) => {
+const Content = (props) => {
+  const { sideLength, diameter, colorCircle, colorTriangle, orientation } =
+    props;
+  const radius = diameter / 2;
   return (
     <>
       <div
         className="triangleView"
         style={{
-          left: window.innerWidth / 2 - diameter / 2,
-          top: window.innerHeight / 2 - diameter / 2,
+          left: window.innerWidth / 2 - radius,
+          top: window.innerHeight / 2 - radius,
         }}
       >
         <Triangle
