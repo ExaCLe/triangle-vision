@@ -130,7 +130,7 @@ function App() {
       correct = true;
     } else if (code === ARROW_DOWN && orientation === "S") {
       correct = true;
-    } else if ((code === ARROW_LEFT, orientation === "W")) {
+    } else if (code === ARROW_LEFT && orientation === "W") {
       correct = true;
     } else if (code === ARROW_RIGHT && orientation === "E") {
       correct = true;
@@ -202,7 +202,12 @@ function App() {
   } else if (appState === WAIT_FOR_ANSWER) {
     content = <p style={{ fontSize: 50 }}>?</p>;
   } else if (appState === SHOW_ANSWER) {
-    content = <AnswerFeedback answerWasCorrect answerTime={answerTime} />;
+    content = (
+      <AnswerFeedback
+        answerWasCorrect={answerWasCorrect}
+        answerTime={answerTime}
+      />
+    );
   } else if (appState === SHOW_FINAL_SCORE) {
     content = (
       <FinalScore

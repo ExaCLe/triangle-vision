@@ -88,9 +88,11 @@ describe("simple testing workflow", () => {
     cy.visit("http://localhost:3000");
     cy.get("[data-testid=fileInput]").attachFile("Testfile3.csv");
 
-    // input a waiting period of 1000ms
-    cy.get("[data-testid=breakInput]").type("1000");
+    // input a waiting period of 1ms
     cy.contains("Start").click();
+
+    // check for the triangle to be visible
+    cy.get("[data-testid=triangleN]").should("be.visible");
 
     // input a correct answer
     cy.get("body").type("{uparrow}");
@@ -103,7 +105,10 @@ describe("simple testing workflow", () => {
     );
     cy.get("[data-testid=answerFeedback]").should("contain.text", "Correct!");
 
+    cy.tick(1);
+
     // input a wrong answer
+    cy.get("body").type("{downarrow}");
     cy.get("body").type("{downarrow}");
 
     // check if the text "incorrect" is shown in red
