@@ -82,4 +82,36 @@ describe("simple testing workflow", () => {
     // check if the reaction time of 950 ms is shown
     cy.contains("950 ms").should("be.visible");
   });
+
+  it('it displays the text "correct" in green after correct answer and "incorrect" after a wrong answer', () => {
+    cy.clock();
+    cy.visit("http://localhost:3000");
+    cy.get("[data-testid=fileInput]").attachFile("Testfile3.csv");
+
+    // input a waiting period of 1000ms
+    cy.get("[data-testid=breakInput]").type("1000");
+    cy.contains("Start").click();
+
+    // input a correct answer
+    cy.get("body").type("{uparrow}");
+
+    // check if the text "correct" is shown in green
+    cy.get("[data-testid=answerFeedback]").should(
+      "have.css",
+      "color",
+      "rgb(0, 128, 0)"
+    );
+    cy.get("[data-testid=answerFeedback]").should("contain.text", "Correct!");
+
+    // input a wrong answer
+    cy.get("body").type("{downarrow}");
+
+    // check if the text "incorrect" is shown in red
+    cy.get("[data-testid=answerFeedback]").should(
+      "have.css",
+      "color",
+      "rgb(255, 0, 0)"
+    );
+    cy.get("[data-testid=answerFeedback]").should("contain.text", "Incorrect!");
+  });
 });
