@@ -3,6 +3,7 @@ import colorsys
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt  # This import is only needed internally by seaborn for plotting; we won't call mpl directly.
+from tqdm import tqdm  # Add TQDM for progress bar
 
 # Initialize bounds
 triangle_size_bounds = (50, 300)
@@ -77,9 +78,10 @@ def split_rectangle(rect):
 
 
 combinations = []
-iterations = 100
+iterations = 200
 
-for _ in range(iterations):
+# Add TQDM progress bar
+for _ in tqdm(range(iterations)):
     probabilities = [selection_probability(r) for r in rectangles]
     total_prob = sum(probabilities)
     if total_prob == 0:
@@ -128,18 +130,42 @@ for _ in range(iterations):
 # Convert to DataFrame for plotting
 df = pd.DataFrame(combinations)
 
-# Map success to colors (True: green, False: red)
-palette = {True: "green", False: "red"}
+# Create the plot
+plt.figure(figsize=(10, 8))
 
-# Create a scatter plot using seaborn
+# Plot the scatter points first
 sns.scatterplot(
     data=df,
     x="triangle_size",
     y="saturation",
     hue="success",
-    palette=palette,
+    palette={True: "green", False: "red"},
     alpha=0.7,
 )
 
-# Show the plot
+# Add rectangle boundaries
+for rect in rectangles:
+    bounds = rect["bounds"]
+    x_min, x_max = bounds["triangle_size"]
+    y_min, y_max = bounds["saturation"]
+
+    # Vertical lines
+    plt.vlines(
+        x=x_min, ymin=y_min, ymax=y_max, colors="blue", alpha=0.3, linestyles="--"
+    )
+    plt.vlines(
+        x=x_max, ymin=y_min, ymax=y_max, colors="blue", alpha=0.3, linestyles="--"
+    )
+
+    # Horizontal lines
+    plt.hlines(
+        y=y_min, xmin=x_min, xmax=x_max, colors="blue", alpha=0.3, linestyles="--"
+    )
+    plt.hlines(
+        y=y_max, xmin=x_min, xmax=x_max, colors="blue", alpha=0.3, linestyles="--"
+    )
+
+plt.xlabel("Triangle Size")
+plt.ylabel("Saturation")
+plt.title("Parameter Space Exploration")
 plt.show()
