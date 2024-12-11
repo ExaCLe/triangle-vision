@@ -1,6 +1,8 @@
-import csv
 import random
 import colorsys
+import seaborn as sns
+import pandas as pd
+import matplotlib.pyplot as plt  # This import is only needed internally by seaborn for plotting; we won't call mpl directly.
 
 # Initialize bounds
 triangle_size_bounds = (50, 300)
@@ -40,8 +42,7 @@ def hsv_to_rgb(h, s, v):
 
 def test_combination(triangle_size, saturation, orientation):
     """Test a single combination once and return True/False for success/failure"""
-    # This is where you would implement the actual test
-    # For now, using random as placeholder
+    # Placeholder test using random choice
     return bool(random.getrandbits(1))
 
 
@@ -49,16 +50,17 @@ def split_rectangle(rect):
     bounds = rect["bounds"]
     midpoints = {k: (v[0] + v[1]) / 2 for k, v in bounds.items()}
     new_rects = []
+    # Split into 4 sub-rectangles
     for i in range(2):
         for j in range(2):
             new_bounds = {
                 "triangle_size": (
-                    (bounds["triangle_size"][i], midpoints["triangle_size"])
+                    (bounds["triangle_size"][0], midpoints["triangle_size"])
                     if i == 0
                     else (midpoints["triangle_size"], bounds["triangle_size"][1])
                 ),
                 "saturation": (
-                    (bounds["saturation"][j], midpoints["saturation"])
+                    (bounds["saturation"][0], midpoints["saturation"])
                     if j == 0
                     else (midpoints["saturation"], bounds["saturation"][1])
                 ),
@@ -97,7 +99,7 @@ for _ in range(iterations):
     # Test this specific combination once
     success = test_combination(triangle_size, saturation, orientation)
 
-    # Update rectangle stats with this single result
+    # Update rectangle stats
     if success:
         selected_rect["true_samples"] += 1
     else:
@@ -108,6 +110,7 @@ for _ in range(iterations):
         selected_rect["true_samples"] / total_samples if total_samples > 0 else 0
     )
 
+    # If success rate is low after a few samples, subdivide the rectangle
     if success_rate < 0.75 and total_samples > 5:
         new_rects = split_rectangle(selected_rect)
         rectangles.remove(selected_rect)
@@ -115,27 +118,28 @@ for _ in range(iterations):
 
     combinations.append(
         {
-            "TriangleSideLength": int(triangle_size),
-            "CircleDiameter": circle_diameter,
-            "TriangleRGB": f"{triangle_rgb[0]},{triangle_rgb[1]},{triangle_rgb[2]}",
-            "CircleRGB": f"{circle_rgb[0]},{circle_rgb[1]},{circle_rgb[2]}",
-            "duration": duration,
+            "triangle_size": triangle_size,
+            "saturation": saturation,
             "orientation": orientation,
-            "success": success,  # Add the success result to the combination
+            "success": success,
         }
     )
 
-with open("output.csv", "w", newline="") as csvfile:
-    fieldnames = [
-        "TriangleSideLength",
-        "CircleDiameter",
-        "TriangleRGB",
-        "CircleRGB",
-        "duration",
-        "orientation",
-        "success",
-    ]
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=";")
-    writer.writeheader()
-    for combo in combinations:
-        writer.writerow(combo)
+# Convert to DataFrame for plotting
+df = pd.DataFrame(combinations)
+
+# Map success to colors (True: green, False: red)
+palette = {True: "green", False: "red"}
+
+# Create a scatter plot using seaborn
+sns.scatterplot(
+    data=df,
+    x="triangle_size",
+    y="saturation",
+    hue="success",
+    palette=palette,
+    alpha=0.7,
+)
+
+# Show the plot
+plt.show()
