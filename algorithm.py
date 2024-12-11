@@ -2,12 +2,14 @@ import random
 import colorsys
 import seaborn as sns
 import pandas as pd
-import matplotlib.pyplot as plt  # This import is only needed internally by seaborn for plotting; we won't call mpl directly.
-from tqdm import tqdm  # Add TQDM for progress bar
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import math
 
 # Initialize bounds
 triangle_size_bounds = (50, 300)
 saturation_bounds = (0.5, 1.0)
+
 # Fixed values for other parameters
 circle_diameter = 500
 hue = 0
@@ -41,10 +43,33 @@ def hsv_to_rgb(h, s, v):
     return int(r * 255), int(g * 255), int(b * 255)
 
 
+def scaled_values(triangle_size, saturation):
+    # Scale triangle_size from [50,300] to [0,1]
+    ts_scaled = (triangle_size - triangle_size_bounds[0]) / (
+        triangle_size_bounds[1] - triangle_size_bounds[0]
+    )
+    # Scale saturation from [0.5,1.0] to [0,1]
+    sat_scaled = (saturation - saturation_bounds[0]) / (
+        saturation_bounds[1] - saturation_bounds[0]
+    )
+    return ts_scaled, sat_scaled
+
+
 def test_combination(triangle_size, saturation, orientation):
-    """Test a single combination once and return True/False for success/failure"""
-    # Placeholder test using random choice
-    return bool(random.getrandbits(1))
+    """Return success/failure based on a gradient probability.
+
+    - Around the lower/left region (ts~,sat~), ~60% success
+    - Around the upper/right region, ~99% success
+    - In the mid-range, around ~80% success
+    """
+    ts_scaled, sat_scaled = scaled_values(triangle_size, saturation)
+    # Compute a smooth gradient success probability
+    # Using a formula that goes from 0.6 at the bottom-left to ~0.99 at the top-right
+    # We take the average magnitude of (ts_scaled, sat_scaled) and feed it into sqrt:
+    success_probability = 0.6 + 0.39 * math.sqrt((ts_scaled**2 + sat_scaled**2) / 2.0)
+
+    # Decide success or failure
+    return random.random() < success_probability
 
 
 def split_rectangle(rect):
@@ -80,7 +105,6 @@ def split_rectangle(rect):
 combinations = []
 iterations = 200
 
-# Add TQDM progress bar
 for _ in tqdm(range(iterations)):
     probabilities = [selection_probability(r) for r in rectangles]
     total_prob = sum(probabilities)
@@ -167,5 +191,5 @@ for rect in rectangles:
 
 plt.xlabel("Triangle Size")
 plt.ylabel("Saturation")
-plt.title("Parameter Space Exploration")
+plt.title("Parameter Space Exploration with Gradient-Based Success Probability")
 plt.show()
