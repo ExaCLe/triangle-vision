@@ -97,19 +97,113 @@ def compute_knn_smooth(df, triangle_size_bounds, saturation_bounds, k=None):
     return X, Y, Z_knn, k
 
 
-def create_plots(combinations, triangle_size_bounds, saturation_bounds):
+def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, params):
+    values = df["success_float"].values
+    points = df[["triangle_size", "saturation"]].values
+
+    # Extract parameters
+    inner_radius = params.get("inner_radius", 15)
+    outer_radius = params.get("outer_radius", 30)
+
+    # Normalize both the data points and grid points to [0,1] range for each dimension
+    triangle_min, triangle_max = triangle_size_bounds
+    saturation_min, saturation_max = saturation_bounds
+
+    points_normalized = np.empty_like(points, dtype=np.float64)
+    points_normalized[:, 0] = (points[:, 0] - triangle_min) / (
+        triangle_max - triangle_min
+    )
+    points_normalized[:, 1] = (points[:, 1] - saturation_min) / (
+        saturation_max - saturation_min
+    )
+
+    # Create grid in original space
+    grid_x = np.linspace(triangle_min, triangle_max, 100)
+    grid_y = np.linspace(saturation_min, saturation_max, 100)
+    X, Y = np.meshgrid(grid_x, grid_y)
+    grid_points = np.column_stack([X.ravel(), Y.ravel()])
+
+    # Normalize grid points
+    grid_points_normalized = np.empty_like(grid_points, dtype=np.float64)
+    grid_points_normalized[:, 0] = (grid_points[:, 0] - triangle_min) / (
+        triangle_max - triangle_min
+    )
+    grid_points_normalized[:, 1] = (grid_points[:, 1] - saturation_min) / (
+        saturation_max - saturation_min
+    )
+
+    # Normalize radii based on the maximum range to maintain aspect ratio
+    max_range = max(triangle_max - triangle_min, saturation_max - saturation_min)
+    inner_radius_norm = inner_radius / max_range
+    outer_radius_norm = outer_radius / max_range
+
+    # Compute squared radii for efficiency
+    inner_radius_sq = inner_radius_norm**2
+    outer_radius_sq = outer_radius_norm**2
+
+    # Initialize Z with NaNs
+    Z = np.full(grid_points_normalized.shape[0], np.nan)
+
+    # Vectorized distance calculation
+    from sklearn.metrics import pairwise_distances
+
+    distances_sq = pairwise_distances(
+        grid_points_normalized, points_normalized, metric="sqeuclidean"
+    )
+
+    # Determine weights based on distances
+    weights = np.where(
+        distances_sq <= inner_radius_sq,
+        1.0,
+        np.where(
+            (distances_sq > inner_radius_sq) & (distances_sq <= outer_radius_sq),
+            (outer_radius_norm - np.sqrt(distances_sq))
+            / (outer_radius_norm - inner_radius_norm),
+            0.0,
+        ),
+    )
+
+    # Avoid division by zero by setting weights to NaN where total weight is zero
+    total_weights = np.sum(weights, axis=1)
+    valid = total_weights > 0
+    Z[valid] = np.sum(weights[valid] * values, axis=1) / total_weights[valid]
+
+    Z = Z.reshape(X.shape)
+    return X, Y, Z
+
+
+def create_plots(
+    combinations,
+    triangle_size_bounds,
+    saturation_bounds,
+    smoothing_method="knn",
+    smoothing_params=None,
+):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
+
+    if smoothing_params is None:
+        smoothing_params = {}
 
     # Create grid for theoretical model
     grid_x = np.linspace(triangle_size_bounds[0], triangle_size_bounds[1], 100)
     grid_y = np.linspace(saturation_bounds[0], saturation_bounds[1], 100)
     X, Y = np.meshgrid(grid_x, grid_y)
 
-    # Compute k-NN smoothing
-    X_knn, Y_knn, Z_knn, k = compute_knn_smooth(
-        df, triangle_size_bounds, saturation_bounds
-    )
+    if smoothing_method == "knn":
+        # Compute k-NN smoothing
+        X_smooth, Y_smooth, Z_smooth, k = compute_knn_smooth(
+            df, triangle_size_bounds, saturation_bounds, k=smoothing_params.get("k")
+        )
+        smooth_title = f"k-NN Smoothed (k={k})"
+    elif smoothing_method == "soft_brush":
+        # Compute soft brush smoothing
+        X_smooth, Y_smooth, Z_smooth = compute_soft_brush_smooth(
+            df, triangle_size_bounds, saturation_bounds, smoothing_params
+        )
+        smooth_title = "Soft Brush Smoothing"
+    else:
+        raise ValueError(f"Unknown smoothing method: {smoothing_method}")
 
     # Compute theoretical model
     Z_model = np.vectorize(
@@ -122,12 +216,26 @@ def create_plots(combinations, triangle_size_bounds, saturation_bounds):
     fig, axs = plt.subplots(1, 3, figsize=(24, 8))
 
     scatter = plot_raw_scatter(axs[0], df)
-    contour_knn = plot_knn_smooth(axs[1], df, X_knn, Y_knn, Z_knn, k)
+    contour_smooth = axs[1].contourf(
+        X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
+    )
+    axs[1].scatter(
+        df["triangle_size"],
+        df["saturation"],
+        c=df["success_float"],
+        cmap="RdYlGn",
+        edgecolor="k",
+        alpha=0.5,
+    )
+    axs[1].set_title(smooth_title)
+    axs[1].set_xlabel("Triangle Size")
+    axs[1].set_ylabel("Saturation")
+
     contour_model = plot_theoretical(axs[2], X, Y, Z_model)
 
     # Add colorbars
     plt.colorbar(scatter, ax=axs[0], label="Success")
-    plt.colorbar(contour_knn, ax=axs[1], label="Success Rate")
+    plt.colorbar(contour_smooth, ax=axs[1], label="Success Rate")
     plt.colorbar(contour_model, ax=axs[2], label="Success Probability")
 
     plt.tight_layout()

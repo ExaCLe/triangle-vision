@@ -23,8 +23,22 @@ def main():
         triangle_size_bounds, saturation_bounds, orientations, iterations=1000
     )
 
+    # Define smoothing method and parameters
+    smoothing_method = "soft_brush"  # Options: 'knn', 'soft_brush'
+    smoothing_params = {
+        "inner_radius": 15,  # Adjust as needed
+        "outer_radius": 30,  # Adjust as needed
+        # For 'knn' method, you could specify 'k': value
+    }
+
     # Create plots
-    create_plots(combinations, triangle_size_bounds, saturation_bounds)
+    create_plots(
+        combinations,
+        triangle_size_bounds,
+        saturation_bounds,
+        smoothing_method=smoothing_method,
+        smoothing_params=smoothing_params,
+    )
 
 
 if __name__ == "__main__":
