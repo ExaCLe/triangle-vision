@@ -26,9 +26,9 @@ def main():
     # Define smoothing method and parameters
     smoothing_method = "soft_brush"  # Options: 'knn', 'soft_brush'
     smoothing_params = {
-        "inner_radius": 15,  # Adjust as needed
-        "outer_radius": 30,  # Adjust as needed
-        # For 'knn' method, you could specify 'k': value
+        "inner_radius": 5,
+        "outer_radius": 60,
+        "k": 100,
     }
 
     # Create plots

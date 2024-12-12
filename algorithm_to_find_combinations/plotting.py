@@ -172,6 +172,42 @@ def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, param
     return X, Y, Z
 
 
+def create_single_smooth_plot(
+    combinations,
+    triangle_size_bounds,
+    saturation_bounds,
+    smoothing_method="soft_brush",
+    smoothing_params=None,
+    ax=None,
+):
+    df = pd.DataFrame(combinations)
+    df["success_float"] = df["success"].astype(float)
+
+    if smoothing_params is None:
+        smoothing_params = {}
+
+    if smoothing_method == "soft_brush":
+        X_smooth, Y_smooth, Z_smooth = compute_soft_brush_smooth(
+            df, triangle_size_bounds, saturation_bounds, smoothing_params
+        )
+        contour_smooth = ax.contourf(
+            X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
+        )
+        ax.scatter(
+            df["triangle_size"],
+            df["saturation"],
+            c=df["success_float"],
+            cmap="RdYlGn",
+            edgecolor="k",
+            alpha=0.5,
+        )
+        ax.set_xlabel("Triangle Size")
+        ax.set_ylabel("Saturation")
+        plt.colorbar(contour_smooth, ax=ax, label="Success Rate")
+    else:
+        raise ValueError(f"Unknown smoothing method: {smoothing_method}")
+
+
 def create_plots(
     combinations,
     triangle_size_bounds,
