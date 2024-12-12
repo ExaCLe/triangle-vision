@@ -117,4 +117,4 @@ def run_base_algorithm(
             }
         )
 
-    return combinations
+    return combinations, rectangles  # Modified to return rectangles as well

@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 from ground_truth import ground_truth_probability
+import matplotlib.patches as patches  # Ensure this import is present
 
 
 def scaled_values(triangle_size, saturation, bounds):
@@ -214,6 +215,7 @@ def create_plots(
     saturation_bounds,
     smoothing_method="knn",
     smoothing_params=None,
+    rectangles=None,
 ):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
@@ -252,6 +254,27 @@ def create_plots(
     fig, axs = plt.subplots(1, 3, figsize=(24, 8))
 
     scatter = plot_raw_scatter(axs[0], df)
+
+    # Add rectangle boundaries using rectangle patches
+    if rectangles is not None:
+        for rect in rectangles:
+            bounds = rect["bounds"]
+            x_min, x_max = bounds["triangle_size"]
+            y_min, y_max = bounds["saturation"]
+
+            # Create a rectangle patch
+            rect_patch = patches.Rectangle(
+                (x_min, y_min),  # (x,y) position
+                x_max - x_min,  # width
+                y_max - y_min,  # height
+                linewidth=1,
+                edgecolor="blue",
+                facecolor="none",
+                linestyle="--",
+                alpha=0.3,
+            )
+            axs[0].add_patch(rect_patch)
+
     contour_smooth = axs[1].contourf(
         X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
     )
