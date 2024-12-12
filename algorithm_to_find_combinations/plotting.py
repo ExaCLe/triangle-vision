@@ -50,9 +50,7 @@ def plot_theoretical(ax, X, Y, Z_model):
     return contour_model
 
 
-def create_plots(combinations, triangle_size_bounds, saturation_bounds):
-    df = pd.DataFrame(combinations)
-    df["success_float"] = df["success"].astype(float)
+def compute_knn_smooth(df, triangle_size_bounds, saturation_bounds, k=None):
     values = df["success_float"].values
 
     # Normalize coordinates for KDTree
@@ -66,9 +64,11 @@ def create_plots(combinations, triangle_size_bounds, saturation_bounds):
     normalized_points = df[["triangle_size_norm", "saturation_norm"]].values
     tree = cKDTree(normalized_points)
 
+    # Determine k if not provided
     n_samples = len(df)
-    k = max(5, int(0.1 * n_samples))
-    k = min(k, n_samples)
+    if k is None:
+        k = max(5, int(0.1 * n_samples))
+        k = min(k, n_samples)
 
     # Create grid
     grid_x = np.linspace(triangle_size_bounds[0], triangle_size_bounds[1], 100)
@@ -94,7 +94,24 @@ def create_plots(combinations, triangle_size_bounds, saturation_bounds):
     neighbor_success = values[idxs]
     Z_knn = np.sum(weights * neighbor_success, axis=1).reshape(X.shape)
 
-    # Update theoretical model calculation
+    return X, Y, Z_knn, k
+
+
+def create_plots(combinations, triangle_size_bounds, saturation_bounds):
+    df = pd.DataFrame(combinations)
+    df["success_float"] = df["success"].astype(float)
+
+    # Create grid for theoretical model
+    grid_x = np.linspace(triangle_size_bounds[0], triangle_size_bounds[1], 100)
+    grid_y = np.linspace(saturation_bounds[0], saturation_bounds[1], 100)
+    X, Y = np.meshgrid(grid_x, grid_y)
+
+    # Compute k-NN smoothing
+    X_knn, Y_knn, Z_knn, k = compute_knn_smooth(
+        df, triangle_size_bounds, saturation_bounds
+    )
+
+    # Compute theoretical model
     Z_model = np.vectorize(
         lambda x, y: ground_truth_probability(
             x, y, (triangle_size_bounds, saturation_bounds)
@@ -105,7 +122,7 @@ def create_plots(combinations, triangle_size_bounds, saturation_bounds):
     fig, axs = plt.subplots(1, 3, figsize=(24, 8))
 
     scatter = plot_raw_scatter(axs[0], df)
-    contour_knn = plot_knn_smooth(axs[1], df, X, Y, Z_knn, k)
+    contour_knn = plot_knn_smooth(axs[1], df, X_knn, Y_knn, Z_knn, k)
     contour_model = plot_theoretical(axs[2], X, Y, Z_model)
 
     # Add colorbars
