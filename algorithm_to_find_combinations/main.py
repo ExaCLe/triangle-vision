@@ -31,7 +31,7 @@ def main():
         "k": 100,
     }
 
-    # Create plots
+    # Create plots (errors will be printed in the terminal)
     create_plots(
         combinations,
         triangle_size_bounds,

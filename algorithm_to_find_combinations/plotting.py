@@ -209,6 +209,13 @@ def create_single_smooth_plot(
         raise ValueError(f"Unknown smoothing method: {smoothing_method}")
 
 
+def compute_error(Z_smooth, Z_model):
+    from sklearn.metrics import mean_squared_error
+
+    error = mean_squared_error(Z_model.flatten(), Z_smooth.flatten())
+    return error * 100  # 100 to see differences easier
+
+
 def create_plots(
     combinations,
     triangle_size_bounds,
@@ -249,6 +256,30 @@ def create_plots(
             x, y, (triangle_size_bounds, saturation_bounds)
         )
     )(X, Y)
+
+    # Compute errors for both methods
+    X_knn, Y_knn, Z_knn, k = compute_knn_smooth(
+        df, triangle_size_bounds, saturation_bounds, k=smoothing_params.get("k")
+    )
+    error_knn = compute_error(Z_knn, Z_model)
+
+    X_soft, Y_soft, Z_soft = compute_soft_brush_smooth(
+        df, triangle_size_bounds, saturation_bounds, smoothing_params
+    )
+    error_soft = compute_error(Z_soft, Z_model)
+
+    print(f"k-NN Error: {error_knn}")
+    print(f"Soft Brush Error: {error_soft}")
+
+    # Create plots based on selected smoothing method
+    if smoothing_method == "knn":
+        X_smooth, Y_smooth, Z_smooth = X_knn, Y_knn, Z_knn
+        smooth_title = f"k-NN Smoothed (k={k})"
+    elif smoothing_method == "soft_brush":
+        X_smooth, Y_smooth, Z_smooth = X_soft, Y_soft, Z_soft
+        smooth_title = "Soft Brush Smoothing"
+    else:
+        raise ValueError(f"Unknown smoothing method: {smoothing_method}")
 
     # Create plots
     fig, axs = plt.subplots(1, 3, figsize=(24, 8))
