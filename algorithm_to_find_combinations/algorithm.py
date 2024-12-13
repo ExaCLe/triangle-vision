@@ -62,6 +62,7 @@ def run_base_algorithm(
     iterations=1000,
     success_rate_threshold=0.85,
     total_samples_threshold=5,
+    test_combination=test_combination,
 ):
     rectangles = [
         {

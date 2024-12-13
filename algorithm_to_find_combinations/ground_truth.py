@@ -15,7 +15,21 @@ def ground_truth_probability(triangle_size, saturation, bounds):
     return 0.6 + 0.39 * math.sqrt((ts_scaled**2 + sat_scaled**2) / 2.0)
 
 
+def ground_truth_probability_model2(triangle_size, saturation, bounds):
+    # Tweaked version of the ground truth model
+    ts_scaled, sat_scaled = scaled_values(triangle_size, saturation, bounds)
+    return 0.5 + 0.39 * math.sqrt((ts_scaled**2 + sat_scaled**2) / 2.0)
+
+
 def test_combination(triangle_size, saturation, orientation, bounds):
     """Test if a combination succeeds based on ground truth probability"""
     success_probability = ground_truth_probability(triangle_size, saturation, bounds)
+    return random.random() < success_probability
+
+
+def test_combination_model2(triangle_size, saturation, orientation, bounds):
+    """Test if a combination succeeds based on ground truth probability"""
+    success_probability = ground_truth_probability_model2(
+        triangle_size, saturation, bounds
+    )
     return random.random() < success_probability

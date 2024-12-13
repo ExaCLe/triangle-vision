@@ -223,6 +223,11 @@ def create_plots(
     smoothing_method="knn",
     smoothing_params=None,
     rectangles=None,
+    ax_raw=None,
+    ax_smooth=None,
+    ax_model=None,
+    ground_truth_func=ground_truth_probability,
+    model_name="",
 ):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
@@ -235,14 +240,18 @@ def create_plots(
     grid_y = np.linspace(saturation_bounds[0], saturation_bounds[1], 100)
     X, Y = np.meshgrid(grid_x, grid_y)
 
+    # Compute theoretical model using the provided function
+    Z_model = np.vectorize(
+        lambda x, y: ground_truth_func(x, y, (triangle_size_bounds, saturation_bounds))
+    )(X, Y)
+
+    # Compute smoothing
     if smoothing_method == "knn":
-        # Compute k-NN smoothing
         X_smooth, Y_smooth, Z_smooth, k = compute_knn_smooth(
             df, triangle_size_bounds, saturation_bounds, k=smoothing_params.get("k")
         )
         smooth_title = f"k-NN Smoothed (k={k})"
     elif smoothing_method == "soft_brush":
-        # Compute soft brush smoothing
         X_smooth, Y_smooth, Z_smooth = compute_soft_brush_smooth(
             df, triangle_size_bounds, saturation_bounds, smoothing_params
         )
@@ -250,66 +259,37 @@ def create_plots(
     else:
         raise ValueError(f"Unknown smoothing method: {smoothing_method}")
 
-    # Compute theoretical model
-    Z_model = np.vectorize(
-        lambda x, y: ground_truth_probability(
-            x, y, (triangle_size_bounds, saturation_bounds)
-        )
-    )(X, Y)
+    # Compute error
+    error = compute_error(Z_smooth, Z_model)
+    print(f"{model_name} - Smoothing Error: {error}")
 
-    # Compute errors for both methods
-    X_knn, Y_knn, Z_knn, k = compute_knn_smooth(
-        df, triangle_size_bounds, saturation_bounds, k=smoothing_params.get("k")
-    )
-    error_knn = compute_error(Z_knn, Z_model)
+    # Plot raw scatter
+    scatter = plot_raw_scatter(ax_raw, df)
+    ax_raw.set_title(f"Raw Sampled Points ({model_name})")
 
-    X_soft, Y_soft, Z_soft = compute_soft_brush_smooth(
-        df, triangle_size_bounds, saturation_bounds, smoothing_params
-    )
-    error_soft = compute_error(Z_soft, Z_model)
-
-    print(f"k-NN Error: {error_knn}")
-    print(f"Soft Brush Error: {error_soft}")
-
-    # Create plots based on selected smoothing method
-    if smoothing_method == "knn":
-        X_smooth, Y_smooth, Z_smooth = X_knn, Y_knn, Z_knn
-        smooth_title = f"k-NN Smoothed (k={k})"
-    elif smoothing_method == "soft_brush":
-        X_smooth, Y_smooth, Z_smooth = X_soft, Y_soft, Z_soft
-        smooth_title = "Soft Brush Smoothing"
-    else:
-        raise ValueError(f"Unknown smoothing method: {smoothing_method}")
-
-    # Create plots
-    fig, axs = plt.subplots(1, 3, figsize=(24, 8))
-
-    scatter = plot_raw_scatter(axs[0], df)
-
-    # Add rectangle boundaries using rectangle patches
+    # Add rectangle boundaries if provided
     if rectangles is not None:
         for rect in rectangles:
             bounds = rect["bounds"]
             x_min, x_max = bounds["triangle_size"]
             y_min, y_max = bounds["saturation"]
-
-            # Create a rectangle patch
             rect_patch = patches.Rectangle(
-                (x_min, y_min),  # (x,y) position
-                x_max - x_min,  # width
-                y_max - y_min,  # height
+                (x_min, y_min),
+                x_max - x_min,
+                y_max - y_min,
                 linewidth=1,
                 edgecolor="blue",
                 facecolor="none",
                 linestyle="--",
                 alpha=0.3,
             )
-            axs[0].add_patch(rect_patch)
+            ax_raw.add_patch(rect_patch)
 
-    contour_smooth = axs[1].contourf(
+    # Plot smoothed data
+    contour_smooth = ax_smooth.contourf(
         X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
     )
-    axs[1].scatter(
+    ax_smooth.scatter(
         df["triangle_size"],
         df["saturation"],
         c=df["success_float"],
@@ -317,16 +297,17 @@ def create_plots(
         edgecolor="k",
         alpha=0.5,
     )
-    axs[1].set_title(smooth_title)
-    axs[1].set_xlabel("Triangle Size")
-    axs[1].set_ylabel("Saturation")
+    ax_smooth.set_title(f"{smooth_title} ({model_name})")
+    ax_smooth.set_xlabel("Triangle Size")
+    ax_smooth.set_ylabel("Saturation")
+    plt.colorbar(contour_smooth, ax=ax_smooth, label="Success Rate")
 
-    contour_model = plot_theoretical(axs[2], X, Y, Z_model)
+    # Plot theoretical model
+    contour_model = plot_theoretical(ax_model, X, Y, Z_model)
+    ax_model.set_title(f"Theoretical Success Probability ({model_name})")
+    ax_model.set_xlabel("Triangle Size")
+    ax_model.set_ylabel("Saturation")
+    plt.colorbar(contour_model, ax=ax_model, label="Success Probability")
 
-    # Add colorbars
-    plt.colorbar(scatter, ax=axs[0], label="Success")
-    plt.colorbar(contour_smooth, ax=axs[1], label="Success Rate")
-    plt.colorbar(contour_model, ax=axs[2], label="Success Probability")
-
-    plt.tight_layout()
-    plt.show()
+    # Add colorbar to raw scatter plot
+    plt.colorbar(scatter, ax=ax_raw, label="Success")
