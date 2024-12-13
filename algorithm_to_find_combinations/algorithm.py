@@ -56,7 +56,12 @@ def split_rectangle(rect):
 
 
 def run_base_algorithm(
-    triangle_size_bounds, saturation_bounds, orientations, iterations
+    triangle_size_bounds,
+    saturation_bounds,
+    orientations,
+    iterations=1000,
+    success_rate_threshold=0.85,
+    total_samples_threshold=5,
 ):
     rectangles = [
         {
@@ -103,7 +108,10 @@ def run_base_algorithm(
             selected_rect["true_samples"] / total_samples if total_samples > 0 else 0
         )
 
-        if success_rate < 0.75 and total_samples > 5:
+        if (
+            success_rate < success_rate_threshold
+            and total_samples > total_samples_threshold
+        ):
             new_rects = split_rectangle(selected_rect)
             rectangles.remove(selected_rect)
             rectangles.extend(new_rects)

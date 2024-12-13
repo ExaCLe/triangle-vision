@@ -20,7 +20,7 @@ np.random.seed(0)
 def main():
     # Run algorithm
     combinations, rectangles = run_base_algorithm(
-        triangle_size_bounds, saturation_bounds, orientations, iterations=1000
+        triangle_size_bounds, saturation_bounds, orientations, iterations=350
     )
 
     # Define smoothing method and parameters

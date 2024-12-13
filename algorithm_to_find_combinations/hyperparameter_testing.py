@@ -11,6 +11,8 @@ from plotting import (
 )
 from tqdm import tqdm
 import random
+from math import ceil
+from itertools import product
 
 # Test parameters for visual testing
 iterations_list = [200, 500, 1000]
@@ -186,6 +188,155 @@ def run_hyperparameter_test_computational():
     )
 
 
+def calculate_grid_layout(n_plots):
+    """Calculate optimal grid layout with maximum 3 columns."""
+    cols = min(3, n_plots)
+    rows = ceil(n_plots / cols)
+    return rows, cols
+
+
+def test_specific_parameters(parameter_combinations):
+    """
+    Test specific parameter combinations and plot results.
+
+    Example parameter_combinations:
+    [
+        {
+            'name': 'Conservative',
+            'success_rate': 0.9,
+            'total_samples': 5,
+            'inner_radius': 10,
+            'outer_radius': 50,
+            'iterations': 200
+        },
+        {
+            'name': 'Aggressive',
+            'success_rate': 0.8,
+            'total_samples': 10,
+            'inner_radius': 20,
+            'outer_radius': 70,
+            'iterations': 500
+        }
+    ]
+    """
+    n_combinations = len(parameter_combinations)
+    rows, cols = calculate_grid_layout(n_combinations)
+
+    fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
+    if rows == 1 and cols == 1:
+        axs = np.array([[axs]])
+    elif rows == 1 or cols == 1:
+        axs = axs.reshape(rows, cols)
+
+    print("Testing specific parameter combinations...")
+    for idx, params in enumerate(tqdm(parameter_combinations)):
+        row = idx // cols
+        col = idx % cols
+
+        np.random.seed(0)
+        random.seed(0)
+        # Run algorithm with current parameters
+        combinations, _ = run_base_algorithm(
+            triangle_size_bounds,
+            saturation_bounds,
+            orientations,
+            iterations=params.get("iterations", 1000),
+            success_rate_threshold=params.get("success_rate", 0.9),
+            total_samples_threshold=params.get("total_samples", 5),
+        )
+
+        # Create smooth plot
+        smooth_params = {
+            "inner_radius": params.get("inner_radius", 15),
+            "outer_radius": params.get("outer_radius", 30),
+        }
+
+        create_single_smooth_plot(
+            combinations,
+            triangle_size_bounds,
+            saturation_bounds,
+            smoothing_method="soft_brush",
+            smoothing_params=smooth_params,
+            ax=axs[row, col],
+        )
+
+        # Set title with parameter information and name
+        title = (
+            f"{params.get('name', f'Combination {idx+1}')}\n"
+            + f"success_rate: {params['success_rate']}\n"
+            + f"total_samples: {params['total_samples']}\n"
+            + f"inner_radius: {params['inner_radius']}\n"
+            + f"outer_radius: {params['outer_radius']}\n"
+            + f"iterations: {params['iterations']}"
+        )
+        axs[row, col].set_title(title, fontsize=8)
+
+    # Remove empty subplots if any
+    for idx in range(n_combinations, rows * cols):
+        row = idx // cols
+        col = idx % cols
+        fig.delaxes(axs[row, col])
+
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
+    # Define specific parameter combinations to test
+    parameter_combinations = [
+        {
+            "name": "Conservative",
+            "success_rate": 0.9,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 200,
+        },
+        {
+            "name": "Conservative",
+            "success_rate": 0.85,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 200,
+        },
+        {
+            "name": "Conservative",
+            "success_rate": 0.9,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 100,
+        },
+        {
+            "name": "Moderate",
+            "success_rate": 0.9,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 350,
+        },
+        {
+            "name": "Moderate",
+            "success_rate": 0.85,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 350,
+        },
+        {
+            "name": "Moderate",
+            "success_rate": 0.85,
+            "total_samples": 5,
+            "inner_radius": 10,
+            "outer_radius": 90,
+            "iterations": 100,
+        },
+    ]
+
+    test_specific_parameters(parameter_combinations)
+
+
 if __name__ == "__main__":
-    run_hyperparameter_test_computational()
+    main()
     # run_hyperparameter_test_visual()
