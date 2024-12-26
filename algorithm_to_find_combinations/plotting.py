@@ -43,6 +43,10 @@ def plot_knn_smooth(ax, df, X, Y, Z_knn, k):
         vmin=0.6,
         vmax=1.0,  # Fixed color map limits
     )
+    # Add contour lines at 0.75 and 0.9
+    ax.contour(X, Y, Z_knn, levels=[0.75], colors="white", linewidths=2)
+    ax.contour(X, Y, Z_knn, levels=[0.9], colors="black", linewidths=2)
+
     scatter_knn = ax.scatter(
         df["triangle_size"],
         df["saturation"],
@@ -70,6 +74,10 @@ def plot_theoretical(ax, X, Y, Z_model):
         vmin=0.6,
         vmax=1.0,  # Fixed color map limits
     )
+    # Add contour lines at 0.75 and 0.9
+    ax.contour(X, Y, Z_model, levels=[0.75], colors="white", linewidths=2)
+    ax.contour(X, Y, Z_model, levels=[0.9], colors="black", linewidths=2)
+
     ax.set_title("Theoretical Success Probability (Model)")
     ax.set_xlabel("Triangle Size")
     ax.set_ylabel("Saturation")
@@ -226,6 +234,11 @@ def create_single_smooth_plot(
             vmin=0.6,
             vmax=1.0,  # Fixed color map limits
         )
+        # Add black contour line at 0.7
+        ax.contour(
+            X_smooth, Y_smooth, Z_smooth, levels=[0.7], colors="black", linewidths=2
+        )
+
         ax.scatter(
             df["triangle_size"],
             df["saturation"],
@@ -329,6 +342,13 @@ def create_plots(
         alpha=0.9,
         vmin=0.6,
         vmax=1.0,  # Fixed color map limits
+    )
+    # Add contour lines at 0.75 and 0.9
+    ax_smooth.contour(
+        X_smooth, Y_smooth, Z_smooth, levels=[0.75], colors="white", linewidths=2
+    )
+    ax_smooth.contour(
+        X_smooth, Y_smooth, Z_smooth, levels=[0.9], colors="black", linewidths=2
     )
     ax_smooth.scatter(
         df["triangle_size"],

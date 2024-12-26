@@ -25,7 +25,7 @@ np.random.seed(0)
 
 
 def main():
-    iterations = 200
+    iterations = 1000
     # Run algorithm
     combinations1, rectangles1 = run_base_algorithm(
         triangle_size_bounds,
