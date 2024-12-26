@@ -25,12 +25,13 @@ np.random.seed(0)
 
 
 def main():
+    iterations = 200
     # Run algorithm
     combinations1, rectangles1 = run_base_algorithm(
         triangle_size_bounds,
         saturation_bounds,
         orientations,
-        iterations=350,
+        iterations=iterations,
         test_combination=test_combination,
     )
 
@@ -39,7 +40,7 @@ def main():
         triangle_size_bounds,
         saturation_bounds,
         orientations,
-        iterations=350,
+        iterations=iterations,
         test_combination=test_combination_model2,
     )
 

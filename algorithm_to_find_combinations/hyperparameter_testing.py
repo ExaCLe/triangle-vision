@@ -8,6 +8,7 @@ from plotting import (
     compute_soft_brush_smooth,
     compute_error,
     ground_truth_probability,
+    uniform_levels,
 )
 from tqdm import tqdm
 import random
@@ -127,12 +128,23 @@ def plot_best_results(combinations, best_knn, best_soft):
 
     # Plot KNN
     X, Y, Z = best_knn["result"]
-    contour_knn = axs[0].contourf(X, Y, Z, levels=100, cmap="RdYlGn", alpha=0.9)
+    contour_knn = axs[0].contourf(
+        X,
+        Y,
+        Z,
+        levels=uniform_levels,  # Use uniform levels
+        cmap="RdYlGn",
+        alpha=0.9,
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
+    )
     axs[0].scatter(
         combinations["triangle_size"],
         combinations["saturation"],
         c=combinations["success_float"],
         cmap="RdYlGn",
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
         edgecolor="k",
         alpha=0.5,
     )
@@ -143,12 +155,23 @@ def plot_best_results(combinations, best_knn, best_soft):
 
     # Plot Soft Brush
     X, Y, Z = best_soft["result"]
-    contour_soft = axs[1].contourf(X, Y, Z, levels=100, cmap="RdYlGn", alpha=0.9)
+    contour_soft = axs[1].contourf(
+        X,
+        Y,
+        Z,
+        levels=uniform_levels,  # Use uniform levels
+        cmap="RdYlGn",
+        alpha=0.9,
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
+    )
     axs[1].scatter(
         combinations["triangle_size"],
         combinations["saturation"],
         c=combinations["success_float"],
         cmap="RdYlGn",
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
         edgecolor="k",
         alpha=0.5,
     )

@@ -5,6 +5,9 @@ from scipy.spatial import cKDTree
 from ground_truth import ground_truth_probability
 import matplotlib.patches as patches  # Ensure this import is present
 
+# Define uniform levels
+uniform_levels = np.linspace(0.45, 1.0, 200)
+
 
 def scaled_values(triangle_size, saturation, bounds):
     ts_scaled = (triangle_size - bounds[0][0]) / (bounds[0][1] - bounds[0][0])
@@ -18,6 +21,8 @@ def plot_raw_scatter(ax, df):
         df["saturation"],
         c=df["success_float"],
         cmap="RdYlGn",
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
         edgecolor="k",
         alpha=0.7,
     )
@@ -28,12 +33,23 @@ def plot_raw_scatter(ax, df):
 
 
 def plot_knn_smooth(ax, df, X, Y, Z_knn, k):
-    contour_knn = ax.contourf(X, Y, Z_knn, levels=100, cmap="RdYlGn", alpha=0.9)
+    contour_knn = ax.contourf(
+        X,
+        Y,
+        Z_knn,
+        levels=uniform_levels,  # Use uniform levels
+        cmap="RdYlGn",
+        alpha=0.9,
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
+    )
     scatter_knn = ax.scatter(
         df["triangle_size"],
         df["saturation"],
         c=df["success_float"],
         cmap="RdYlGn",
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
         edgecolor="k",
         alpha=0.5,
     )
@@ -44,7 +60,16 @@ def plot_knn_smooth(ax, df, X, Y, Z_knn, k):
 
 
 def plot_theoretical(ax, X, Y, Z_model):
-    contour_model = ax.contourf(X, Y, Z_model, levels=100, cmap="RdYlGn", alpha=0.9)
+    contour_model = ax.contourf(
+        X,
+        Y,
+        Z_model,
+        levels=uniform_levels,  # Use uniform levels
+        cmap="RdYlGn",
+        alpha=0.9,
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
+    )
     ax.set_title("Theoretical Success Probability (Model)")
     ax.set_xlabel("Triangle Size")
     ax.set_ylabel("Saturation")
@@ -192,13 +217,22 @@ def create_single_smooth_plot(
             df, triangle_size_bounds, saturation_bounds, smoothing_params
         )
         contour_smooth = ax.contourf(
-            X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
+            X_smooth,
+            Y_smooth,
+            Z_smooth,
+            levels=uniform_levels,  # Use uniform levels
+            cmap="RdYlGn",
+            alpha=0.9,
+            vmin=0.6,
+            vmax=1.0,  # Fixed color map limits
         )
         ax.scatter(
             df["triangle_size"],
             df["saturation"],
             c=df["success_float"],
             cmap="RdYlGn",
+            vmin=0.6,
+            vmax=1.0,  # Fixed color map limits
             edgecolor="k",
             alpha=0.5,
         )
@@ -287,13 +321,22 @@ def create_plots(
 
     # Plot smoothed data
     contour_smooth = ax_smooth.contourf(
-        X_smooth, Y_smooth, Z_smooth, levels=100, cmap="RdYlGn", alpha=0.9
+        X_smooth,
+        Y_smooth,
+        Z_smooth,
+        levels=uniform_levels,  # Use uniform levels
+        cmap="RdYlGn",
+        alpha=0.9,
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
     )
     ax_smooth.scatter(
         df["triangle_size"],
         df["saturation"],
         c=df["success_float"],
         cmap="RdYlGn",
+        vmin=0.6,
+        vmax=1.0,  # Fixed color map limits
         edgecolor="k",
         alpha=0.5,
     )
