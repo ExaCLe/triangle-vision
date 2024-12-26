@@ -1,0 +1,6 @@
+fastapi[standard]
+matplotlib
+seaborn 
+numpy 
+tqdm
+scikit-learn
