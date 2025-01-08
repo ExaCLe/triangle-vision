@@ -5,6 +5,10 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
   const [testData, setTestData] = useState({
     title: '',
     description: '',
+    min_triangle_size: 1.0,
+    max_triangle_size: 5.0,
+    min_saturation: 0.2,
+    max_saturation: 0.8,
   });
 
   const handleSubmit = async (e) => {
@@ -36,6 +40,51 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
               onChange={(e) => setTestData({...testData, description: e.target.value})}
               required
             />
+          </div>
+          <div className="form-group range-inputs">
+            <label>Triangle Size Range:</label>
+            <div className="range-container">
+              <input
+                type="number"
+                step="0.1"
+                value={testData.min_triangle_size}
+                onChange={(e) => setTestData({...testData, min_triangle_size: parseFloat(e.target.value)})}
+                required
+              />
+              <span>to</span>
+              <input
+                type="number"
+                step="0.1"
+                value={testData.max_triangle_size}
+                onChange={(e) => setTestData({...testData, max_triangle_size: parseFloat(e.target.value)})}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-group range-inputs">
+            <label>Saturation Range:</label>
+            <div className="range-container">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="1"
+                value={testData.min_saturation}
+                onChange={(e) => setTestData({...testData, min_saturation: parseFloat(e.target.value)})}
+                required
+              />
+              <span>to</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="1"
+                value={testData.max_saturation}
+                onChange={(e) => setTestData({...testData, max_saturation: parseFloat(e.target.value)})}
+                required
+              />
+            </div>
           </div>
           <div className="modal-buttons">
             <button type="submit">Create</button>

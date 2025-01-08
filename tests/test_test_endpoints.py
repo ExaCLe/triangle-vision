@@ -11,12 +11,23 @@ def test_create_test(client: TestClient):
     3. The created_at field is present
     4. The response status code is 200
     """
-    test_data = {"title": "Test Title", "description": "Test Description"}
+    test_data = {
+        "title": "Test Title",
+        "description": "Test Description",
+        "min_triangle_size": 1.0,
+        "max_triangle_size": 5.0,
+        "min_saturation": 0.2,
+        "max_saturation": 0.8,
+    }
     response = client.post("/tests/", json=test_data)
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
+    assert data["min_triangle_size"] == test_data["min_triangle_size"]
+    assert data["max_triangle_size"] == test_data["max_triangle_size"]
+    assert data["min_saturation"] == test_data["min_saturation"]
+    assert data["max_saturation"] == test_data["max_saturation"]
     assert "id" in data
     assert "created_at" in data
 
@@ -32,8 +43,22 @@ def test_read_tests(client: TestClient):
     """
     # Create some test data first
     test_data = [
-        {"title": "Test 1", "description": "Description 1"},
-        {"title": "Test 2", "description": "Description 2"},
+        {
+            "title": "Test 1",
+            "description": "Description 1",
+            "min_triangle_size": 1.0,
+            "max_triangle_size": 5.0,
+            "min_saturation": 0.2,
+            "max_saturation": 0.8,
+        },
+        {
+            "title": "Test 2",
+            "description": "Description 2",
+            "min_triangle_size": 2.0,
+            "max_triangle_size": 6.0,
+            "min_saturation": 0.3,
+            "max_saturation": 0.9,
+        },
     ]
     for data in test_data:
         client.post("/tests/", json=data)
@@ -48,6 +73,10 @@ def test_read_tests(client: TestClient):
         assert "title" in item
         assert "description" in item
         assert "created_at" in item
+        assert "min_triangle_size" in item
+        assert "max_triangle_size" in item
+        assert "min_saturation" in item
+        assert "max_saturation" in item
 
 
 def test_read_test(client: TestClient):
@@ -59,7 +88,14 @@ def test_read_test(client: TestClient):
     3. Non-existent IDs return 404
     """
     # Create a test first
-    test_data = {"title": "Test Title", "description": "Test Description"}
+    test_data = {
+        "title": "Test Title",
+        "description": "Test Description",
+        "min_triangle_size": 1.0,
+        "max_triangle_size": 5.0,
+        "min_saturation": 0.2,
+        "max_saturation": 0.8,
+    }
     create_response = client.post("/tests/", json=test_data)
     test_id = create_response.json()["id"]
 
@@ -69,6 +105,10 @@ def test_read_test(client: TestClient):
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
+    assert data["min_triangle_size"] == test_data["min_triangle_size"]
+    assert data["max_triangle_size"] == test_data["max_triangle_size"]
+    assert data["min_saturation"] == test_data["min_saturation"]
+    assert data["max_saturation"] == test_data["max_saturation"]
 
     # Test non-existent ID
     response = client.get("/tests/999999")
@@ -85,19 +125,37 @@ def test_update_test(client: TestClient):
     4. The created_at field remains unchanged
     """
     # Create a test first
-    test_data = {"title": "Original Title", "description": "Original Description"}
+    test_data = {
+        "title": "Original Title",
+        "description": "Original Description",
+        "min_triangle_size": 1.0,
+        "max_triangle_size": 5.0,
+        "min_saturation": 0.2,
+        "max_saturation": 0.8,
+    }
     create_response = client.post("/tests/", json=test_data)
     test_id = create_response.json()["id"]
     original_created_at = create_response.json()["created_at"]
 
     # Update the test
-    update_data = {"title": "Updated Title", "description": "Updated Description"}
+    update_data = {
+        "title": "Updated Title",
+        "description": "Updated Description",
+        "min_triangle_size": 2.0,
+        "max_triangle_size": 6.0,
+        "min_saturation": 0.3,
+        "max_saturation": 0.9,
+    }
     response = client.put(f"/tests/{test_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == update_data["title"]
     assert data["description"] == update_data["description"]
     assert data["created_at"] == original_created_at
+    assert data["min_triangle_size"] == update_data["min_triangle_size"]
+    assert data["max_triangle_size"] == update_data["max_triangle_size"]
+    assert data["min_saturation"] == update_data["min_saturation"]
+    assert data["max_saturation"] == update_data["max_saturation"]
 
     # Test non-existent ID
     response = client.put("/tests/999999", json=update_data)
@@ -114,7 +172,14 @@ def test_delete_test(client: TestClient):
     4. Deleted tests cannot be retrieved
     """
     # Create a test first
-    test_data = {"title": "Test Title", "description": "Test Description"}
+    test_data = {
+        "title": "Test Title",
+        "description": "Test Description",
+        "min_triangle_size": 1.0,
+        "max_triangle_size": 5.0,
+        "min_saturation": 0.2,
+        "max_saturation": 0.8,
+    }
     create_response = client.post("/tests/", json=test_data)
     test_id = create_response.json()["id"]
 
@@ -124,6 +189,10 @@ def test_delete_test(client: TestClient):
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
+    assert data["min_triangle_size"] == test_data["min_triangle_size"]
+    assert data["max_triangle_size"] == test_data["max_triangle_size"]
+    assert data["min_saturation"] == test_data["min_saturation"]
+    assert data["max_saturation"] == test_data["max_saturation"]
 
     # Verify the test is deleted
     response = client.get(f"/tests/{test_id}")

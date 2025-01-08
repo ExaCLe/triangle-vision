@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Float
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from db.database import Base
@@ -10,12 +10,20 @@ class Test(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(String)
+    min_triangle_size = Column(Float)
+    max_triangle_size = Column(Float)
+    min_saturation = Column(Float)
+    max_saturation = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class TestBase(BaseModel):
     title: str
     description: str
+    min_triangle_size: float
+    max_triangle_size: float
+    min_saturation: float
+    max_saturation: float
 
 
 class TestCreate(TestBase):
