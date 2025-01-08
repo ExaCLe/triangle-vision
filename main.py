@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from db.database import engine
 from models.test import Base
-from routers import test_router
+from routers import test_router, test_result_router
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +22,7 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="frontend/build"), name="static")
 app.include_router(test_router.router)
+app.include_router(test_result_router.router)
 
 
 @app.get("/")

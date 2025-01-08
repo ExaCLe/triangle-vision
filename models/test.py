@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from db.database import Base
@@ -15,6 +16,20 @@ class Test(Base):
     min_saturation = Column(Float)
     max_saturation = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
+    results = relationship("TestResult", back_populates="test")
+
+
+class TestResult(Base):
+    __tablename__ = "test_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    test_id = Column(Integer, ForeignKey("tests.id"))
+    accuracy = Column(Float)
+    processing_time = Column(Float)
+    num_triangles = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    test = relationship("Test", back_populates="results")
 
 
 class TestBase(BaseModel):
@@ -39,3 +54,25 @@ class TestResponse(TestBase):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TestResultBase(BaseModel):
+    accuracy: float
+    processing_time: float
+    num_triangles: int
+
+
+class TestResultCreate(TestResultBase):
+    test_id: int
+
+
+class TestResultUpdate(TestResultBase):
+    pass
+
+
+class TestResultResponse(TestResultBase):
+    id: int
+    test_id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
