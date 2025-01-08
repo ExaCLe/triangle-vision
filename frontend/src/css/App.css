@@ -106,3 +106,16 @@ button {
 .app {
   min-height: 100vh;
 }
+
+.error-message {
+  color: #dc3545;
+  text-align: center;
+  font-size: 1.2rem;
+  margin: 2rem 0;
+}
+
+.home-container p {
+  text-align: center;
+  font-size: 1.2rem;
+  margin: 2rem 0;
+}

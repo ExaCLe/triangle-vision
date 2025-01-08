@@ -24,8 +24,8 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
             <label>Name:</label>
             <input
               type="text"
-              value={testData.name}
-              onChange={(e) => setTestData({...testData, name: e.target.value})}
+              value={testData.title}
+              onChange={(e) => setTestData({...testData, title: e.target.value})}
               required
             />
           </div>

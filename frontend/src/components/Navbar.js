@@ -3,7 +3,7 @@ import { useState } from 'react';
 import '../css/Navbar.css';
 import CreateTestModal from './CreateTestModal';
 
-function Navbar() {
+function Navbar({ onTestCreated }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleCreateTest = async (testData) => {
@@ -23,7 +23,7 @@ function Navbar() {
 
       const result = await response.json();
       console.log('Test created:', result);
-      // You might want to trigger a refresh of the tests list here
+      window.location.reload(); // Refresh the page to show new test
       
     } catch (error) {
       console.error('Error creating test:', error);
