@@ -10,11 +10,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchTests();
-  }, []);
-
-  const fetchTests = async () => {
+  const refetchTests = async () => {
+    setLoading(true);
     try {
       const response = await fetch('http://localhost:8000/tests/');
       if (!response.ok) {
@@ -30,10 +27,14 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    refetchTests();
+  }, []);
+
   return (
     <Router>
       <div className="app">
-        <Navbar />
+        <Navbar onRefetch={refetchTests} />
         <Routes>
           <Route path="/" element={
             <div className="home-container">

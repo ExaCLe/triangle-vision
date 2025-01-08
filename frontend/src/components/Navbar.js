@@ -2,9 +2,14 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import '../css/Navbar.css';
 import CreateTestModal from './CreateTestModal';
+import ModifyTestModal from './ModifyTestModal';
+import DeleteTestModal from './DeleteTestModal';
 
-function Navbar({ onTestCreated }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+function Navbar({ onRefetch }) {
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isModifyModalOpen, setIsModifyModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const handleCreateTest = async (testData) => {
     try {
@@ -21,9 +26,8 @@ function Navbar({ onTestCreated }) {
         throw new Error('Failed to create test');
       }
 
-      const result = await response.json();
-      console.log('Test created:', result);
-      window.location.reload(); // Refresh the page to show new test
+      await onRefetch();
+      setIsCreateModalOpen(false);
       
     } catch (error) {
       console.error('Error creating test:', error);
@@ -40,18 +44,52 @@ function Navbar({ onTestCreated }) {
         <div className="nav-links">
           <Link to="/" className="nav-link">Home</Link>
           <Link to="/custom-test" className="nav-link">Custom Test</Link>
+          <div className="dropdown">
+            <button 
+              className="dropdown-btn"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              Change ▼
+            </button>
+            {isDropdownOpen && (
+              <div className="dropdown-content">
+                <button onClick={() => {
+                  setIsModifyModalOpen(true);
+                  setIsDropdownOpen(false);
+                }}>
+                  Modify Test
+                </button>
+                <button onClick={() => {
+                  setIsDeleteModalOpen(true);
+                  setIsDropdownOpen(false);
+                }}>
+                  Delete Test
+                </button>
+              </div>
+            )}
+          </div>
           <button 
             className="create-test-btn"
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsCreateModalOpen(true)}
           >
             Create New Test
           </button>
         </div>
       </nav>
       <CreateTestModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateTest}
+      />
+      <ModifyTestModal
+        isOpen={isModifyModalOpen}
+        onClose={() => setIsModifyModalOpen(false)}
+        onRefetch={onRefetch}
+      />
+      <DeleteTestModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onRefetch={onRefetch}
       />
     </>
   );
