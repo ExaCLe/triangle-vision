@@ -16,20 +16,41 @@ class Test(Base):
     min_saturation = Column(Float)
     max_saturation = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
-    results = relationship("TestResult", back_populates="test")
+    rectangles = relationship("Rectangle", back_populates="test")
+    combinations = relationship("TestCombination", back_populates="test")
 
 
-class TestResult(Base):
-    __tablename__ = "test_results"
+class Rectangle(Base):
+    __tablename__ = "rectangles"
 
     id = Column(Integer, primary_key=True, index=True)
     test_id = Column(Integer, ForeignKey("tests.id"))
-    accuracy = Column(Float)
-    processing_time = Column(Float)
-    num_triangles = Column(Integer)
+    min_triangle_size = Column(Float)
+    max_triangle_size = Column(Float)
+    min_saturation = Column(Float)
+    max_saturation = Column(Float)
+    area = Column(Float)
+    true_samples = Column(Integer, default=0)
+    false_samples = Column(Integer, default=0)
+
+    test = relationship("Test", back_populates="rectangles")
+    combinations = relationship("TestCombination", back_populates="rectangle")
+
+
+class TestCombination(Base):
+    __tablename__ = "test_combinations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rectangle_id = Column(Integer, ForeignKey("rectangles.id"))
+    test_id = Column(Integer, ForeignKey("tests.id"))
+    triangle_size = Column(Float)
+    saturation = Column(Float)
+    orientation = Column(String)
+    success = Column(Integer)  # 1 for true, 0 for false
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    test = relationship("Test", back_populates="results")
+    rectangle = relationship("Rectangle", back_populates="combinations")
+    test = relationship("Test", back_populates="combinations")
 
 
 class TestBase(BaseModel):
@@ -56,22 +77,42 @@ class TestResponse(TestBase):
     model_config = {"from_attributes": True}
 
 
-class TestResultBase(BaseModel):
-    accuracy: float
-    processing_time: float
-    num_triangles: int
+class RectangleBase(BaseModel):
+    min_triangle_size: float
+    max_triangle_size: float
+    min_saturation: float
+    max_saturation: float
+    area: float
+    true_samples: int
+    false_samples: int
 
 
-class TestResultCreate(TestResultBase):
+class RectangleCreate(RectangleBase):
     test_id: int
 
 
-class TestResultUpdate(TestResultBase):
-    pass
-
-
-class TestResultResponse(TestResultBase):
+class RectangleResponse(RectangleBase):
     id: int
+    test_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TestCombinationBase(BaseModel):
+    triangle_size: float
+    saturation: float
+    orientation: str
+    success: int
+
+
+class TestCombinationCreate(TestCombinationBase):
+    rectangle_id: int
+    test_id: int
+
+
+class TestCombinationResponse(TestCombinationBase):
+    id: int
+    rectangle_id: int
     test_id: int
     created_at: datetime
 
