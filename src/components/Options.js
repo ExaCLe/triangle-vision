@@ -27,6 +27,10 @@ class Options extends Component {
       }
 
       this.parseFile(inputFile, (results) => {
+        // ignore empty rows
+        results.data = results.data.filter((row) => {
+          return Object.values(row).some((value) => value !== null && value !== "");
+        });
         this.props.setData(results.data);
       });
     }
