@@ -154,7 +154,7 @@ function App() {
           colorCircle,
           duration,
           orientation,
-          "correct",
+          correct,
           responseTime,
         ],
       ],
