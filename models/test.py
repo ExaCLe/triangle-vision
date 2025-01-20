@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from db.database import Base
+from typing import Literal
 
 
 class Test(Base):
@@ -101,19 +102,20 @@ class RectangleResponse(RectangleBase):
 class TestCombinationBase(BaseModel):
     triangle_size: float
     saturation: float
-    orientation: str
+    orientation: Literal["N", "E", "S", "W"]
     success: int
+    test_id: int
+    rectangle_id: int
+
+    model_config = ConfigDict(from_attributes=True)  # Add this to base class
 
 
 class TestCombinationCreate(TestCombinationBase):
-    rectangle_id: int
-    test_id: int
+    pass
 
 
 class TestCombinationResponse(TestCombinationBase):
     id: int
-    rectangle_id: int
-    test_id: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,7 @@
 import random
 import colorsys
 from tqdm import tqdm
-from ground_truth import test_combination
+from .ground_truth import test_combination
 
 # Initialize bounds
 triangle_size_bounds = (50, 300)
@@ -58,23 +58,34 @@ def split_rectangle(rect):
 class AlgorithmState:
     def __init__(self, rectangles=None):
         self.rectangles = rectangles or []
+        self.new_rectangles = []
+        self.removed_rectangles = []
+        self.init_tracking()
+
+    def init_tracking(self):
+        """Initialize or reset tracking arrays"""
+        if not hasattr(self, "new_rectangles"):
+            self.new_rectangles = []
+        if not hasattr(self, "removed_rectangles"):
+            self.removed_rectangles = []
 
 
 def get_next_combination(state: AlgorithmState):
     """Get the next combination to test based on current state"""
+    state.init_tracking()  # Ensure tracking arrays exist
     if not state.rectangles:
-        # Initialize with single rectangle covering whole space
-        state.rectangles = [
-            {
-                "bounds": {
-                    "triangle_size": triangle_size_bounds,
-                    "saturation": saturation_bounds,
-                },
-                "area": 1.0,
-                "true_samples": 0,
-                "false_samples": 0,
-            }
-        ]
+        initial_rect = {
+            "bounds": {
+                "triangle_size": triangle_size_bounds,
+                "saturation": saturation_bounds,
+            },
+            "area": 1.0,
+            "true_samples": 0,
+            "false_samples": 0,
+        }
+        state.rectangles = [initial_rect]
+        state.new_rectangles = [initial_rect]
+        state.removed_rectangles = []
 
     probabilities = [selection_probability(r) for r in state.rectangles]
     total_prob = sum(probabilities)
@@ -87,12 +98,10 @@ def get_next_combination(state: AlgorithmState):
 
     triangle_size = random.uniform(*bounds["triangle_size"])
     saturation = random.uniform(*bounds["saturation"])
-    orientation = random.choice(orientations)
 
     return {
         "triangle_size": triangle_size,
         "saturation": saturation,
-        "orientation": orientation,
     }, selected_rect
 
 
@@ -122,6 +131,10 @@ def update_state(
         new_rects = split_rectangle(selected_rect)
         state.rectangles.remove(selected_rect)
         state.rectangles.extend(new_rects)
+
+        # Track changes
+        state.removed_rectangles.append(selected_rect)
+        state.new_rectangles.extend(new_rects)
 
     return state
 
