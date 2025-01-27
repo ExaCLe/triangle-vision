@@ -263,8 +263,11 @@ button {
 }
 
 .icon {
-  margin-right: 0.5rem;
   font-size: 1rem;
+}
+
+.play-icon {
+  margin-right: 0.5rem;
 }
 
 .flex-1 {

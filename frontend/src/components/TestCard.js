@@ -35,7 +35,7 @@ function TestCard({ test, onEdit, onDelete }) {
       </div>
       <div className="card-footer">
         <Link to={`/play-test/${id}`} className="btn btn-primary flex-1">
-          <span className="icon">▶</span>
+          <span className="icon play-icon">▶</span>
           Play Test
         </Link>
         <Link

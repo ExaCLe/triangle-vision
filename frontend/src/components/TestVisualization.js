@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import "../css/TestVisualization.css";
@@ -7,7 +9,7 @@ function TestVisualization() {
   const [plotUrl, setPlotUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showRectangles, setShowRectangles] = useState(false); // Add state for toggle
+  const [showRectangles, setShowRectangles] = useState(false);
   const [showPlot, setShowPlot] = useState(false);
 
   const fetchPlot = async (showRects) => {
@@ -31,11 +33,7 @@ function TestVisualization() {
 
   useEffect(() => {
     fetchPlot(showRectangles);
-  }, [testId, showRectangles]); // Re-fetch when showRectangles changes
-
-  const handleToggleRectangles = () => {
-    setShowRectangles(!showRectangles);
-  };
+  }, [testId, showRectangles]);
 
   const handleDownloadPlot = () => {
     if (!plotUrl) return;
@@ -67,45 +65,56 @@ function TestVisualization() {
     }
   };
 
-  if (loading) return <div>Loading visualization...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (error) return <div className="error-message">Error: {error}</div>;
 
   return (
     <div className="visualization-container">
-      <h2>Test Results</h2>
-
-      <div className="controls">
-        <div className="visualization-options">
-          <label>
-            <input
-              type="checkbox"
-              checked={showRectangles}
-              onChange={(e) => setShowRectangles(e.target.checked)}
-            />
-            Include rectangles in visualization
-          </label>
+      <div className="visualization-header">
+        <div>
+          <h4 className="visualization-title">Test Results</h4>
         </div>
-
-        <div className="download-options">
-          <button onClick={handleDownloadCSV}>Download Results (CSV)</button>
-
-          {!showPlot ? (
-            <button onClick={() => fetchPlot(showRectangles)}>
-              Show Visualization
+        <div className="controls">
+          <div className="control-group">
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showRectangles}
+                onChange={(e) => setShowRectangles(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+            <label>Show Rectangles</label>
+          </div>
+          <button
+            className="visualization-btn"
+            onClick={() => fetchPlot(showRectangles)}
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+          <button className="visualization-btn" onClick={handleDownloadCSV}>
+            Download CSV
+          </button>
+          {showPlot && (
+            <button className="visualization-btn" onClick={handleDownloadPlot}>
+              Download Chart
             </button>
-          ) : (
-            <button onClick={handleDownloadPlot}>Download Visualization</button>
           )}
         </div>
       </div>
 
-      {loading && <div>Loading visualization...</div>}
-
-      {showPlot && plotUrl && (
-        <div className="plot-container">
-          <img src={plotUrl} alt="Test visualization" />
-        </div>
-      )}
+      <div className="visualization-content">
+        {loading ? (
+          <div className="loading-placeholder" />
+        ) : (
+          showPlot &&
+          plotUrl && (
+            <div className="visualization-image">
+              <img src={plotUrl} alt="Test visualization" />
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }
