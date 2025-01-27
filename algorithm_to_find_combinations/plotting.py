@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
-from ground_truth import ground_truth_probability
+from .ground_truth import ground_truth_probability
 import matplotlib.patches as patches  # Ensure this import is present
 
 # Define uniform levels
@@ -213,6 +213,7 @@ def create_single_smooth_plot(
     smoothing_method="soft_brush",
     smoothing_params=None,
     ax=None,
+    rectangles=None,  # Add rectangles parameter
 ):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
@@ -228,16 +229,33 @@ def create_single_smooth_plot(
             X_smooth,
             Y_smooth,
             Z_smooth,
-            levels=uniform_levels,  # Use uniform levels
+            levels=uniform_levels,
             cmap="RdYlGn",
             alpha=0.9,
             vmin=0.6,
-            vmax=1.0,  # Fixed color map limits
+            vmax=1.0,
         )
-        # Add black contour line at 0.7
         ax.contour(
             X_smooth, Y_smooth, Z_smooth, levels=[0.7], colors="black", linewidths=2
         )
+
+        # Add rectangle visualization if provided
+        if rectangles is not None:
+            for rect in rectangles:
+                bounds = rect["bounds"]
+                x_min, x_max = bounds["triangle_size"]
+                y_min, y_max = bounds["saturation"]
+                rect_patch = patches.Rectangle(
+                    (x_min, y_min),
+                    x_max - x_min,
+                    y_max - y_min,
+                    linewidth=1,
+                    edgecolor="blue",
+                    facecolor="none",
+                    linestyle="--",
+                    alpha=0.5,
+                )
+                ax.add_patch(rect_patch)
 
         ax.scatter(
             df["triangle_size"],
