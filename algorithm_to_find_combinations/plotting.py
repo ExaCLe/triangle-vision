@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
-from .ground_truth import ground_truth_probability
+from .ground_truth import ground_truth_probability, get_scaled_radii
 import matplotlib.patches as patches  # Ensure this import is present
 
 # Define uniform levels
-uniform_levels = np.linspace(0.45, 1.0, 200)
+uniform_levels = np.linspace(0.3, 1.0, 200)
 
 
 def scaled_values(triangle_size, saturation, bounds):
@@ -135,9 +135,6 @@ def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, param
     values = df["success_float"].values
     points = df[["triangle_size", "saturation"]].values
 
-    # Get normalized radii for current bounds
-    from ground_truth import get_scaled_radii
-
     inner_radius, outer_radius = get_scaled_radii(
         (triangle_size_bounds, saturation_bounds)
     )
@@ -227,8 +224,6 @@ def create_single_smooth_plot(
 
     if smoothing_params is None:
         # Get default normalized parameters if none provided
-        from ground_truth import get_scaled_radii
-
         inner_radius, outer_radius = get_scaled_radii(
             (triangle_size_bounds, saturation_bounds)
         )
@@ -312,8 +307,6 @@ def create_plots(
 
     if smoothing_params is None and smoothing_method == "soft_brush":
         # Get default normalized parameters if none provided
-        from ground_truth import get_scaled_radii
-
         inner_radius, outer_radius = get_scaled_radii(
             (triangle_size_bounds, saturation_bounds)
         )
