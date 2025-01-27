@@ -17,7 +17,6 @@ a = Analysis(
     binaries=binaries,
     datas=[
         ('frontend/build/**/*', 'frontend/build'),  # Include all frontend build files
-        ('db/**/*', 'db'),  # Include the 'db' directory and its contents
         ('algorithm_to_find_combinations/**/*', 'algorithm_to_find_combinations'),  # Include necessary modules
     ],
     hiddenimports=[
