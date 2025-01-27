@@ -1,105 +1,38 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
 import "../css/Navbar.css";
-import TestFormModal from "./TestFormModal";
-import DeleteTestModal from "./DeleteTestModal";
 
-function Navbar({ onRefetch }) {
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("create");
-
-  const handleTestSubmit = async (testData, testId = null) => {
-    try {
-      const url = testId
-        ? `http://localhost:8000/tests/${testId}`
-        : "http://localhost:8000/tests/";
-
-      const response = await fetch(url, {
-        method: testId ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(testData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${testId ? "modify" : "create"} test`);
-      }
-
-      await onRefetch();
-      setIsTestModalOpen(false);
-    } catch (error) {
-      console.error(`Error ${testId ? "modifying" : "creating"} test:`, error);
-    }
-  };
-
+function Navbar({ onCreateClick }) {
   return (
-    <>
-      <nav className="navbar">
-        <Link to="/" className="nav-logo">
-          Triangle Vision
-        </Link>
-        <div className="nav-links">
-          <Link to="/" className="nav-link">
-            Home
-          </Link>
-          <Link to="/custom-test" className="nav-link">
-            Custom Test
-          </Link>
-          <div className="dropdown">
-            <button
-              className="dropdown-btn"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            >
-              Change ▼
-            </button>
-            {isDropdownOpen && (
-              <div className="dropdown-content">
-                <button
-                  onClick={() => {
-                    setModalMode("modify");
-                    setIsTestModalOpen(true);
-                    setIsDropdownOpen(false);
-                  }}
-                >
-                  Modify Test
-                </button>
-                <button
-                  onClick={() => {
-                    setIsDeleteModalOpen(true);
-                    setIsDropdownOpen(false);
-                  }}
-                >
-                  Delete Test
-                </button>
-              </div>
-            )}
+    <div className="container">
+      <div className="py-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Triangle Vision Tests
+            </h1>
+            <p className="text-muted-foreground">
+              Manage and run your vision tests
+            </p>
           </div>
-          <button
-            className="create-test-btn"
-            onClick={() => {
-              setModalMode("create");
-              setIsTestModalOpen(true);
-            }}
-          >
+          <button className="create-test-btn" onClick={onCreateClick}>
+            <svg
+              className="plus-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="16" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
             Create New Test
           </button>
         </div>
-      </nav>
-      <TestFormModal
-        isOpen={isTestModalOpen}
-        onClose={() => setIsTestModalOpen(false)}
-        onSubmit={handleTestSubmit}
-        mode={modalMode}
-      />
-      <DeleteTestModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onRefetch={onRefetch}
-      />
-    </>
+      </div>
+    </div>
   );
 }
 

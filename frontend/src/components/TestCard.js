@@ -1,28 +1,49 @@
-import '../css/TestCard.css';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
 
 function TestCard({ test }) {
-  const navigate = useNavigate();
-
-  const handlePlayTest = () => {
-    navigate(`/play-test/${test.id}`);
-  };
+  const {
+    id,
+    name,
+    description,
+    triangleMin,
+    triangleMax,
+    saturationMin,
+    saturationMax,
+  } = test;
 
   return (
-    <div className="test-card">
-      <h2>{test.title}</h2>
-      <p>{test.description}</p>
-      <div className="ranges">
-        <p>Triangle Size: {test.min_triangle_size} - {test.max_triangle_size}</p>
-        <p>Saturation: {test.min_saturation} - {test.max_saturation}</p>
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">{name}</h3>
+        <p className="card-description">{description}</p>
       </div>
-      <div className="test-card-actions">
-        <Link to={`/play-test/${test.id}`} className="play-button">
+      <div className="card-content">
+        <div className="text-sm">
+          <span className="font-medium">Triangle Size:</span> {triangleMin} -{" "}
+          {triangleMax}
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">Saturation:</span> {saturationMin} -{" "}
+          {saturationMax}
+        </div>
+      </div>
+      <div className="card-footer">
+        <Link to={`/play-test/${id}`} className="btn btn-primary flex-1">
+          <span className="icon">▶</span>
           Play Test
         </Link>
-        <Link to={`/test-visualization/${test.id}`} className="visualize-button">
-          Visualize
+        <Link
+          to={`/test-visualization/${id}`}
+          className="btn btn-outline btn-icon"
+        >
+          <span className="icon">👁</span>
         </Link>
+        <button className="btn btn-outline btn-icon">
+          <span className="icon">⚙️</span>
+        </button>
+        <button className="btn btn-outline btn-icon">
+          <span className="icon">🗑</span>
+        </button>
       </div>
     </div>
   );
