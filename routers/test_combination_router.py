@@ -17,6 +17,7 @@ from algorithm_to_find_combinations.algorithm import (
     get_next_combination,
     update_state,
 )
+from crud.test import get_test
 
 router = APIRouter(prefix="/test-combinations", tags=["test-combinations"])
 
@@ -89,29 +90,14 @@ def read_test_combinations_by_test(test_id: int, db: Session = Depends(get_db)):
     ]
 
 
-def _load_algorithm_state(test_id: int, db: Session) -> AlgorithmState:
-    """Helper function to load algorithm state from database"""
-    rectangles = db.query(Rectangle).filter(Rectangle.test_id == test_id).all()
+def _load_algorithm_state(db: Session, test_id: int) -> AlgorithmState:
+    test = get_test(db, test_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
 
-    if not rectangles:
-        return AlgorithmState()  # Return empty state for initialization
-
-    algorithm_rectangles = [
-        {
-            "bounds": {
-                "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
-                "saturation": (rect.min_saturation, rect.max_saturation),
-            },
-            "area": rect.area,
-            "true_samples": rect.true_samples,
-            "false_samples": rect.false_samples,
-        }
-        for rect in rectangles
-    ]
-
-    state = AlgorithmState(algorithm_rectangles)
-    state.init_tracking()  # Ensure tracking arrays exist
-    return state
+    triangle_size_bounds = (test.min_triangle_size, test.max_triangle_size)
+    saturation_bounds = (test.min_saturation, test.max_saturation)
+    return AlgorithmState(triangle_size_bounds, saturation_bounds)
 
 
 def _sync_algorithm_state(state: AlgorithmState, test_id: int, db: Session):
@@ -171,7 +157,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    state = _load_algorithm_state(test_id, db)
+    state = _load_algorithm_state(db, test_id)
     combination, selected_rect = get_next_combination(state)
     if not combination:
         raise HTTPException(status_code=404, detail="No more combinations to test")
@@ -227,7 +213,7 @@ def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_
     db.refresh(rectangle)
 
     # Load state and update algorithm
-    state = _load_algorithm_state(result.test_id, db)
+    state = _load_algorithm_state(db, result.test_id)
     selected_rect = next(
         (
             r

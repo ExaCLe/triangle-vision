@@ -3,13 +3,7 @@ import colorsys
 from tqdm import tqdm
 from .ground_truth import test_combination
 
-# Initialize bounds
-triangle_size_bounds = (50, 300)
-saturation_bounds = (0.5, 1.0)
-
-# Fixed values for other parameters
-hue = 0
-value = 1.0
+# Remove hardcoded bounds and just keep orientations
 orientations = ["N", "S", "E", "W"]
 
 
@@ -56,7 +50,9 @@ def split_rectangle(rect):
 
 
 class AlgorithmState:
-    def __init__(self, rectangles=None):
+    def __init__(self, triangle_size_bounds, saturation_bounds, rectangles=None):
+        self.triangle_size_bounds = triangle_size_bounds
+        self.saturation_bounds = saturation_bounds
         self.rectangles = rectangles or []
         self.new_rectangles = []
         self.removed_rectangles = []
@@ -76,8 +72,8 @@ def get_next_combination(state: AlgorithmState):
     if not state.rectangles:
         initial_rect = {
             "bounds": {
-                "triangle_size": triangle_size_bounds,
-                "saturation": saturation_bounds,
+                "triangle_size": state.triangle_size_bounds,
+                "saturation": state.saturation_bounds,
             },
             "area": 1.0,
             "true_samples": 0,
@@ -149,7 +145,7 @@ def run_base_algorithm(
     test_combination=test_combination,
 ):
     """Keep original function working by using the new stateful version internally"""
-    state = AlgorithmState()
+    state = AlgorithmState(triangle_size_bounds, saturation_bounds)
     combinations = []
 
     for _ in tqdm(range(iterations), desc="Sampling Iterations"):

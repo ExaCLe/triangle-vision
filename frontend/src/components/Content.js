@@ -4,7 +4,6 @@ const Content = (props) => {
   const { sideLength, diameter, colorCircle, colorTriangle, orientation } =
     props;
   const radius = diameter / 2;
-  console.log(colorCircle, colorTriangle)
   return (
     <>
       <div

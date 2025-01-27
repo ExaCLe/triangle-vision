@@ -117,8 +117,6 @@ function PlayTest() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentTest, feedback]);
 
-  console.log(feedback)
-  console.log("Rendering")
   return (
     <>
       <div className="play-test-container" style={{ 
