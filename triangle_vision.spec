@@ -17,7 +17,7 @@ a = Analysis(
     binaries=binaries,
     datas=[
         ('frontend/build/**/*', 'frontend/build'),  # Include all frontend build files
-        ('algorithm_to_find_combinations/**/*', 'algorithm_to_find_combinations'),  # Include necessary modules
+        ('algorithm_to_find_combinations/*', 'algorithm_to_find_combinations'),  # Include necessary modules
     ],
     hiddenimports=[
         'uvicorn.logging',
