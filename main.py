@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="frontend/build"), name="static")
+app.mount("/static", StaticFiles(directory="./frontend/build"), name="static")
 app.include_router(test_router.router)
 app.include_router(test_combination_router.router)
 
