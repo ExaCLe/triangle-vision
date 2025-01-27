@@ -5,7 +5,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('frontend/build/*', 'frontend/build'),
+        ('./frontend/build/*', './frontend/build'),
         ('db', 'db'),
         ('algorithm_to_find_combinations', 'algorithm_to_find_combinations')
     ],
