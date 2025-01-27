@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import '../css/CreateTestModal.css';
+import { useState } from "react";
+import "../css/CreateTestModal.css";
 
 function CreateTestModal({ isOpen, onClose, onSubmit }) {
   const [testData, setTestData] = useState({
-    title: '',
-    description: '',
-    min_triangle_size: 1.0,
-    max_triangle_size: 5.0,
-    min_saturation: 0.2,
+    title: "",
+    description: "",
+    min_triangle_size: 5.0,
+    max_triangle_size: 100.0,
+    min_saturation: 0.05,
     max_saturation: 0.8,
   });
 
@@ -29,7 +29,9 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
             <input
               type="text"
               value={testData.title}
-              onChange={(e) => setTestData({...testData, title: e.target.value})}
+              onChange={(e) =>
+                setTestData({ ...testData, title: e.target.value })
+              }
               required
             />
           </div>
@@ -37,7 +39,9 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
             <label>Description:</label>
             <textarea
               value={testData.description}
-              onChange={(e) => setTestData({...testData, description: e.target.value})}
+              onChange={(e) =>
+                setTestData({ ...testData, description: e.target.value })
+              }
               required
             />
           </div>
@@ -48,7 +52,12 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
                 type="number"
                 step="0.1"
                 value={testData.min_triangle_size}
-                onChange={(e) => setTestData({...testData, min_triangle_size: parseFloat(e.target.value)})}
+                onChange={(e) =>
+                  setTestData({
+                    ...testData,
+                    min_triangle_size: parseFloat(e.target.value),
+                  })
+                }
                 required
               />
               <span>to</span>
@@ -56,7 +65,12 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
                 type="number"
                 step="0.1"
                 value={testData.max_triangle_size}
-                onChange={(e) => setTestData({...testData, max_triangle_size: parseFloat(e.target.value)})}
+                onChange={(e) =>
+                  setTestData({
+                    ...testData,
+                    max_triangle_size: parseFloat(e.target.value),
+                  })
+                }
                 required
               />
             </div>
@@ -70,8 +84,16 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
                 value={testData.min_saturation}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value === '' || (!isNaN(value) && parseFloat(value) >= 0 && parseFloat(value) <= 1)) {
-                    setTestData({...testData, min_saturation: value === '' ? value : parseFloat(value)});
+                  if (
+                    value === "" ||
+                    (!isNaN(value) &&
+                      parseFloat(value) >= 0 &&
+                      parseFloat(value) <= 1)
+                  ) {
+                    setTestData({
+                      ...testData,
+                      min_saturation: value === "" ? value : parseFloat(value),
+                    });
                   }
                 }}
                 required
@@ -82,8 +104,16 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
                 value={testData.max_saturation}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value === '' || (!isNaN(value) && parseFloat(value) >= 0 && parseFloat(value) <= 1)) {
-                    setTestData({...testData, max_saturation: value === '' ? value : parseFloat(value)});
+                  if (
+                    value === "" ||
+                    (!isNaN(value) &&
+                      parseFloat(value) >= 0 &&
+                      parseFloat(value) <= 1)
+                  ) {
+                    setTestData({
+                      ...testData,
+                      max_saturation: value === "" ? value : parseFloat(value),
+                    });
                   }
                 }}
                 required
@@ -92,7 +122,9 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
           </div>
           <div className="modal-buttons">
             <button type="submit">Create</button>
-            <button type="button" onClick={onClose}>Cancel</button>
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
           </div>
         </form>
       </div>

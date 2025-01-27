@@ -53,36 +53,27 @@ class AlgorithmState:
     def __init__(self, triangle_size_bounds, saturation_bounds, rectangles=None):
         self.triangle_size_bounds = triangle_size_bounds
         self.saturation_bounds = saturation_bounds
-        self.rectangles = rectangles or []
+        if rectangles is None:
+            # Initialize with a single rectangle covering the entire space
+            self.rectangles = [
+                {
+                    "bounds": {
+                        "triangle_size": triangle_size_bounds,
+                        "saturation": saturation_bounds,
+                    },
+                    "area": 1.0,
+                    "true_samples": 0,
+                    "false_samples": 0,
+                }
+            ]
+        else:
+            self.rectangles = rectangles
         self.new_rectangles = []
         self.removed_rectangles = []
-        self.init_tracking()
-
-    def init_tracking(self):
-        """Initialize or reset tracking arrays"""
-        if not hasattr(self, "new_rectangles"):
-            self.new_rectangles = []
-        if not hasattr(self, "removed_rectangles"):
-            self.removed_rectangles = []
 
 
 def get_next_combination(state: AlgorithmState):
     """Get the next combination to test based on current state"""
-    state.init_tracking()  # Ensure tracking arrays exist
-    if not state.rectangles:
-        initial_rect = {
-            "bounds": {
-                "triangle_size": state.triangle_size_bounds,
-                "saturation": state.saturation_bounds,
-            },
-            "area": 1.0,
-            "true_samples": 0,
-            "false_samples": 0,
-        }
-        state.rectangles = [initial_rect]
-        state.new_rectangles = [initial_rect]
-        state.removed_rectangles = []
-
     probabilities = [selection_probability(r) for r in state.rectangles]
     total_prob = sum(probabilities)
     if total_prob == 0:
@@ -120,10 +111,11 @@ def update_state(
         selected_rect["true_samples"] / total_samples if total_samples > 0 else 0
     )
 
+    # Split if success rate is too low or if we have too many samples
     if (
         success_rate < success_rate_threshold
         and total_samples > total_samples_threshold
-    ):
+    ) or total_samples > 60:
         new_rects = split_rectangle(selected_rect)
         state.rectangles.remove(selected_rect)
         state.rectangles.extend(new_rects)
