@@ -66,22 +66,26 @@ function CreateTestModal({ isOpen, onClose, onSubmit }) {
             <label>Saturation Range:</label>
             <div className="range-container">
               <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="1"
+                type="text"
                 value={testData.min_saturation}
-                onChange={(e) => setTestData({...testData, min_saturation: parseFloat(e.target.value)})}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || (!isNaN(value) && parseFloat(value) >= 0 && parseFloat(value) <= 1)) {
+                    setTestData({...testData, min_saturation: value === '' ? value : parseFloat(value)});
+                  }
+                }}
                 required
               />
               <span>to</span>
               <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="1"
+                type="text"
                 value={testData.max_saturation}
-                onChange={(e) => setTestData({...testData, max_saturation: parseFloat(e.target.value)})}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || (!isNaN(value) && parseFloat(value) >= 0 && parseFloat(value) <= 1)) {
+                    setTestData({...testData, max_saturation: value === '' ? value : parseFloat(value)});
+                  }
+                }}
                 required
               />
             </div>
