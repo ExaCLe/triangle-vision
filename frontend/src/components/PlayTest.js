@@ -56,6 +56,11 @@ function PlayTest() {
       // Fetch next combination immediately
       fetchNextCombination();
 
+      // Clear feedback after 500ms
+      setTimeout(() => {
+        setFeedback(null);
+      }, 500);
+
       // Send result to server (no need to await)
       fetch('http://localhost:8000/test-combinations/result', {
         method: 'POST',
