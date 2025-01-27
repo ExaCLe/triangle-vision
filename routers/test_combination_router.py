@@ -97,7 +97,26 @@ def _load_algorithm_state(db: Session, test_id: int) -> AlgorithmState:
 
     triangle_size_bounds = (test.min_triangle_size, test.max_triangle_size)
     saturation_bounds = (test.min_saturation, test.max_saturation)
-    return AlgorithmState(triangle_size_bounds, saturation_bounds)
+
+    # Load existing rectangles from database
+    db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == test_id).all()
+
+    # Convert database rectangles to algorithm format
+    rectangles = []
+    for rect in db_rectangles:
+        rectangles.append(
+            {
+                "bounds": {
+                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
+                    "saturation": (rect.min_saturation, rect.max_saturation),
+                },
+                "area": rect.area,
+                "true_samples": rect.true_samples,
+                "false_samples": rect.false_samples,
+            }
+        )
+
+    return AlgorithmState(triangle_size_bounds, saturation_bounds, rectangles)
 
 
 def _sync_algorithm_state(state: AlgorithmState, test_id: int, db: Session):

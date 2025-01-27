@@ -4,6 +4,7 @@ import CustomTest from './components/CustomTest';
 import Navbar from './components/Navbar';
 import TestCard from './components/TestCard';
 import PlayTest from './components/PlayTest';
+import TestVisualization from './components/TestVisualization';
 import './css/App.css';
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
           } />
           <Route path="/custom-test" element={<CustomTest />} />
           <Route path="/play-test/:testId" element={<PlayTest />} />
+          <Route path="/test-visualization/:testId" element={<TestVisualization />} />
         </Routes>
       </div>
     </Router>
