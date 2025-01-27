@@ -1,37 +1,37 @@
-import { Link } from 'react-router-dom';
-import { useState } from 'react';
-import '../css/Navbar.css';
-import CreateTestModal from './CreateTestModal';
-import ModifyTestModal from './ModifyTestModal';
-import DeleteTestModal from './DeleteTestModal';
+import { Link } from "react-router-dom";
+import { useState } from "react";
+import "../css/Navbar.css";
+import TestFormModal from "./TestFormModal";
+import DeleteTestModal from "./DeleteTestModal";
 
 function Navbar({ onRefetch }) {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isModifyModalOpen, setIsModifyModalOpen] = useState(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("create");
 
-  const handleCreateTest = async (testData) => {
+  const handleTestSubmit = async (testData, testId = null) => {
     try {
-      console.log(JSON.stringify(testData));
-      const response = await fetch('http://localhost:8000/tests/', {
-        method: 'POST',
+      const url = testId
+        ? `http://localhost:8000/tests/${testId}`
+        : "http://localhost:8000/tests/";
+
+      const response = await fetch(url, {
+        method: testId ? "PUT" : "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(testData)
+        body: JSON.stringify(testData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create test');
+        throw new Error(`Failed to ${testId ? "modify" : "create"} test`);
       }
 
       await onRefetch();
-      setIsCreateModalOpen(false);
-      
+      setIsTestModalOpen(false);
     } catch (error) {
-      console.error('Error creating test:', error);
-      // Handle error (show notification, etc.)
+      console.error(`Error ${testId ? "modifying" : "creating"} test:`, error);
     }
   };
 
@@ -42,10 +42,14 @@ function Navbar({ onRefetch }) {
           Triangle Vision
         </Link>
         <div className="nav-links">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/custom-test" className="nav-link">Custom Test</Link>
+          <Link to="/" className="nav-link">
+            Home
+          </Link>
+          <Link to="/custom-test" className="nav-link">
+            Custom Test
+          </Link>
           <div className="dropdown">
-            <button 
+            <button
               className="dropdown-btn"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
@@ -53,38 +57,42 @@ function Navbar({ onRefetch }) {
             </button>
             {isDropdownOpen && (
               <div className="dropdown-content">
-                <button onClick={() => {
-                  setIsModifyModalOpen(true);
-                  setIsDropdownOpen(false);
-                }}>
+                <button
+                  onClick={() => {
+                    setModalMode("modify");
+                    setIsTestModalOpen(true);
+                    setIsDropdownOpen(false);
+                  }}
+                >
                   Modify Test
                 </button>
-                <button onClick={() => {
-                  setIsDeleteModalOpen(true);
-                  setIsDropdownOpen(false);
-                }}>
+                <button
+                  onClick={() => {
+                    setIsDeleteModalOpen(true);
+                    setIsDropdownOpen(false);
+                  }}
+                >
                   Delete Test
                 </button>
               </div>
             )}
           </div>
-          <button 
+          <button
             className="create-test-btn"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => {
+              setModalMode("create");
+              setIsTestModalOpen(true);
+            }}
           >
             Create New Test
           </button>
         </div>
       </nav>
-      <CreateTestModal 
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateTest}
-      />
-      <ModifyTestModal
-        isOpen={isModifyModalOpen}
-        onClose={() => setIsModifyModalOpen(false)}
-        onRefetch={onRefetch}
+      <TestFormModal
+        isOpen={isTestModalOpen}
+        onClose={() => setIsTestModalOpen(false)}
+        onSubmit={handleTestSubmit}
+        mode={modalMode}
       />
       <DeleteTestModal
         isOpen={isDeleteModalOpen}
