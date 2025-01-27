@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
-import CustomTest from "./components/CustomTest";
 import TestCard from "./components/TestCard";
+import TestFormModal from "./components/TestFormModal";
+import CustomTest from "./components/CustomTest";
 import PlayTest from "./components/PlayTest";
 import TestVisualization from "./components/TestVisualization";
-import TestFormModal from "./components/TestFormModal";
 import "./css/App.css";
 import Navbar from "./components/Navbar";
 
@@ -14,6 +14,7 @@ function App() {
   const [error, setError] = useState(null);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
+  const [selectedTest, setSelectedTest] = useState(null);
 
   const refetchTests = async () => {
     setLoading(true);
@@ -42,6 +43,7 @@ function App() {
         ? `http://localhost:8000/tests/${testId}`
         : "http://localhost:8000/tests/";
 
+      console.log(testData);
       const response = await fetch(url, {
         method: testId ? "PUT" : "POST",
         headers: {
@@ -56,33 +58,90 @@ function App() {
 
       await refetchTests();
       setIsTestModalOpen(false);
+      setSelectedTest(null);
     } catch (error) {
       console.error(`Error ${testId ? "modifying" : "creating"} test:`, error);
+      alert(
+        `Failed to ${testId ? "modify" : "create"} test. Please try again.`
+      );
     }
+  };
+
+  const handleDeleteTest = async (testId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/tests/${testId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete test");
+      }
+
+      await refetchTests();
+    } catch (error) {
+      console.error("Error deleting test:", error);
+      alert("Failed to delete test. Please try again.");
+    }
+  };
+
+  const handleEditTest = (test) => {
+    setSelectedTest(test);
+    setModalMode("modify");
+    setIsTestModalOpen(true);
   };
 
   return (
     <Router>
       <div className="app">
-        <Navbar onCreateClick={() => setIsTestModalOpen(true)} />
-        <main className="container py-6">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {loading ? (
-              <p>Loading tests...</p>
-            ) : error ? (
-              <p className="error-message">{error}</p>
-            ) : tests.length === 0 ? (
-              <p>No tests available</p>
-            ) : (
-              tests.map((test) => <TestCard key={test.id} test={test} />)
-            )}
-          </div>
-        </main>
+        <Navbar
+          onCreateClick={() => {
+            setSelectedTest(null);
+            setModalMode("create");
+            setIsTestModalOpen(true);
+          }}
+        />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <main className="container py-6">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {loading ? (
+                    <p>Loading tests...</p>
+                  ) : error ? (
+                    <p className="error-message">{error}</p>
+                  ) : tests.length === 0 ? (
+                    <p>No tests available</p>
+                  ) : (
+                    tests.map((test) => (
+                      <TestCard
+                        key={test.id}
+                        test={test}
+                        onEdit={handleEditTest}
+                        onDelete={handleDeleteTest}
+                      />
+                    ))
+                  )}
+                </div>
+              </main>
+            }
+          />
+          <Route path="/custom-test" element={<CustomTest />} />
+          <Route path="/play-test/:testId" element={<PlayTest />} />
+          <Route
+            path="/test-visualization/:testId"
+            element={<TestVisualization />}
+          />
+        </Routes>
         <TestFormModal
           isOpen={isTestModalOpen}
-          onClose={() => setIsTestModalOpen(false)}
-          onSubmit={handleTestSubmit}
-          mode="create"
+          onClose={() => {
+            setIsTestModalOpen(false);
+            setSelectedTest(null);
+          }}
+          onSubmit={(data) => handleTestSubmit(data, selectedTest?.id)}
+          mode={modalMode}
+          defaultValues={selectedTest}
         />
       </div>
     </Router>

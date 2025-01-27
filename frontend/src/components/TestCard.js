@@ -1,30 +1,36 @@
 import { Link } from "react-router-dom";
 
-function TestCard({ test }) {
+function TestCard({ test, onEdit, onDelete }) {
   const {
     id,
-    name,
+    title,
     description,
-    triangleMin,
-    triangleMax,
-    saturationMin,
-    saturationMax,
+    min_triangle_size,
+    max_triangle_size,
+    min_saturation,
+    max_saturation,
   } = test;
+
+  const handleDelete = async () => {
+    if (window.confirm("Are you sure you want to delete this test?")) {
+      onDelete(id);
+    }
+  };
 
   return (
     <div className="card">
       <div className="card-header">
-        <h3 className="card-title">{name}</h3>
+        <h3 className="card-title">{title}</h3>
         <p className="card-description">{description}</p>
       </div>
       <div className="card-content">
         <div className="text-sm">
-          <span className="font-medium">Triangle Size:</span> {triangleMin} -{" "}
-          {triangleMax}
+          <span className="font-medium">Triangle Size:</span>{" "}
+          {min_triangle_size} - {max_triangle_size}
         </div>
         <div className="text-sm">
-          <span className="font-medium">Saturation:</span> {saturationMin} -{" "}
-          {saturationMax}
+          <span className="font-medium">Saturation:</span> {min_saturation} -{" "}
+          {max_saturation}
         </div>
       </div>
       <div className="card-footer">
@@ -38,10 +44,13 @@ function TestCard({ test }) {
         >
           <span className="icon">👁</span>
         </Link>
-        <button className="btn btn-outline btn-icon">
+        <button
+          className="btn btn-outline btn-icon"
+          onClick={() => onEdit(test)}
+        >
           <span className="icon">⚙️</span>
         </button>
-        <button className="btn btn-outline btn-icon">
+        <button className="btn btn-outline btn-icon" onClick={handleDelete}>
           <span className="icon">🗑</span>
         </button>
       </div>

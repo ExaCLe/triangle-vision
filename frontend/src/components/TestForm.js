@@ -1,11 +1,11 @@
 function TestForm({ onSubmit, defaultValues = {} }) {
   const standardValues = {
-    name: "",
+    title: "",
     description: "",
-    triangleMin: 10,
-    triangleMax: 200,
-    saturationMin: 0.05,
-    saturationMax: 0.3,
+    min_triangle_size: 10,
+    max_triangle_size: 200,
+    min_saturation: 0.05,
+    max_saturation: 0.3,
     ...defaultValues, // This allows passed values to override standards
   };
 
@@ -16,11 +16,12 @@ function TestForm({ onSubmit, defaultValues = {} }) {
 
     // Convert string values to numbers for numeric fields
     const processedData = {
-      ...data,
-      triangleMin: Number(data.triangleMin),
-      triangleMax: Number(data.triangleMax),
-      saturationMin: Number(data.saturationMin),
-      saturationMax: Number(data.saturationMax),
+      title: data.title,
+      description: data.description,
+      min_triangle_size: Number(data.min_triangle_size),
+      max_triangle_size: Number(data.max_triangle_size),
+      min_saturation: Number(data.min_saturation),
+      max_saturation: Number(data.max_saturation),
     };
 
     onSubmit(processedData);
@@ -29,15 +30,14 @@ function TestForm({ onSubmit, defaultValues = {} }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="name" className="form-label">
+        <label htmlFor="title" className="form-label">
           Name
         </label>
         <input
-          id="name"
-          name="name"
+          id="title"
+          name="title"
           className="form-input"
-          defaultValue={standardValues.name}
-          placeholder="Vision Test Name"
+          defaultValue={standardValues.title}
           required
         />
       </div>
@@ -50,7 +50,6 @@ function TestForm({ onSubmit, defaultValues = {} }) {
           name="description"
           className="form-textarea"
           defaultValue={standardValues.description}
-          placeholder="Test description..."
           required
         />
       </div>
@@ -59,30 +58,28 @@ function TestForm({ onSubmit, defaultValues = {} }) {
           <label className="form-label">Triangle Bounds</label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label htmlFor="triangleMin" className="sr-only">
+              <label htmlFor="min_triangle_size" className="sr-only">
                 Minimum
               </label>
               <input
-                id="triangleMin"
-                name="triangleMin"
+                id="min_triangle_size"
+                name="min_triangle_size"
                 type="number"
                 className="form-input"
-                placeholder="Min"
-                defaultValue={standardValues.triangleMin}
+                defaultValue={standardValues.min_triangle_size}
                 required
               />
             </div>
             <div>
-              <label htmlFor="triangleMax" className="sr-only">
+              <label htmlFor="max_triangle_size" className="sr-only">
                 Maximum
               </label>
               <input
-                id="triangleMax"
-                name="triangleMax"
+                id="max_triangle_size"
+                name="max_triangle_size"
                 type="number"
                 className="form-input"
-                placeholder="Max"
-                defaultValue={standardValues.triangleMax}
+                defaultValue={standardValues.max_triangle_size}
                 required
               />
             </div>
@@ -92,32 +89,30 @@ function TestForm({ onSubmit, defaultValues = {} }) {
           <label className="form-label">Saturation Bounds</label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label htmlFor="saturationMin" className="sr-only">
+              <label htmlFor="min_saturation" className="sr-only">
                 Minimum
               </label>
               <input
-                id="saturationMin"
-                name="saturationMin"
+                id="min_saturation"
+                name="min_saturation"
                 type="number"
                 step="0.01"
                 className="form-input"
-                placeholder="Min"
-                defaultValue={standardValues.saturationMin}
+                defaultValue={standardValues.min_saturation}
                 required
               />
             </div>
             <div>
-              <label htmlFor="saturationMax" className="sr-only">
+              <label htmlFor="max_saturation" className="sr-only">
                 Maximum
               </label>
               <input
-                id="saturationMax"
-                name="saturationMax"
+                id="max_saturation"
+                name="max_saturation"
                 type="number"
                 step="0.01"
                 className="form-input"
-                placeholder="Max"
-                defaultValue={standardValues.saturationMax}
+                defaultValue={standardValues.max_saturation}
                 required
               />
             </div>
