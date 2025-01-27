@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Content from './Content';
-import AnswerFeedback from './AnswerFeedback';
 
 function PlayTest() {
   const { testId } = useParams();
@@ -37,7 +36,6 @@ function PlayTest() {
       const data = await response.json();
       setCurrentTest(data);
       setStartTime(Date.now());
-      setFeedback(null);
     } catch (error) {
       console.error('Error fetching next combination:', error);
     }
@@ -49,7 +47,17 @@ function PlayTest() {
     const answerTime = Date.now() - startTime;
 
     try {
-      await fetch('http://localhost:8000/test-combinations/result', {
+      // Set feedback immediately
+      setFeedback({
+        correct: success,
+        time: answerTime
+      });
+
+      // Fetch next combination immediately
+      fetchNextCombination();
+
+      // Send result to server (no need to await)
+      fetch('http://localhost:8000/test-combinations/result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -57,16 +65,6 @@ function PlayTest() {
           success: success ? 1 : 0
         })
       });
-
-      setFeedback({
-        correct: success,
-        time: answerTime
-      });
-
-      // Fetch next combination after a brief delay to show feedback
-      setTimeout(() => {
-        fetchNextCombination();
-      }, 1000);
 
     } catch (error) {
       console.error('Error submitting result:', error);
@@ -78,31 +76,34 @@ function PlayTest() {
   }, [testId]);
 
   const handleKeyPress = (event) => {
-    if (!feedback) {  // Only accept input if not showing feedback
-      const orientation = currentTest?.orientation;
-      let success = false;
+    // Prevent default scrolling behavior for arrow keys
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      event.preventDefault();
+    }
 
-      switch (event.key) {
-        case 'ArrowUp':
-          success = orientation === 'N';
-          break;
-        case 'ArrowRight':
-          success = orientation === 'E';
-          break;
-        case 'ArrowDown':
-          success = orientation === 'S';
-          break;
-        case 'ArrowLeft':
-          success = orientation === 'W';
-          break;
-        default:
-          return; // ignore other keys
-      }
+    const orientation = currentTest?.orientation;
+    let success = false;
 
-      // Only submit if an arrow key was pressed
-      if (['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(event.key)) {
-        submitResult(success);
-      }
+    switch (event.key) {
+      case 'ArrowUp':
+        success = orientation === 'N';
+        break;
+      case 'ArrowRight':
+        success = orientation === 'E';
+        break;
+      case 'ArrowDown':
+        success = orientation === 'S';
+        break;
+      case 'ArrowLeft':
+        success = orientation === 'W';
+        break;
+      default:
+        return; // ignore other keys
+    }
+
+    // Only submit if an arrow key was pressed
+    if (['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(event.key)) {
+      submitResult(success);
     }
   };
 
@@ -111,26 +112,42 @@ function PlayTest() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentTest, feedback]);
 
-  console.log(currentTest?.saturation)
+  console.log(feedback)
+  console.log("Rendering")
   return (
-    <div className="play-test-container">
-      {feedback ? (
-        <AnswerFeedback 
-          answerWasCorrect={feedback.correct}
-          answerTime={feedback.time}
+    <>
+      <div className="play-test-container" style={{ 
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}>
+        {currentTest ? (
+          <Content
+            sideLength={currentTest.triangle_size}
+            diameter={200}
+            colorCircle="#1a1a1a"
+            colorTriangle={hslToRgb(0, 0, currentTest.saturation * 100)}
+            orientation={currentTest.orientation}
+          />
+        ) : (
+          <div>Loading...</div>
+        )}
+
+      </div>
+      {feedback && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '20px', // Made taller
+            backgroundColor: feedback.correct ? '#4CAF50' : '#F44336',
+            transition: 'all 0.3s ease',
+          }}
         />
-      ) : currentTest ? (
-        <Content
-          sideLength={currentTest.triangle_size}
-          diameter={200}
-          colorCircle="#1a1a1a"
-          colorTriangle={hslToRgb(0, 0, currentTest.saturation * 100)}
-          orientation={currentTest.orientation}
-        />
-      ) : (
-        <div>Loading...</div>
       )}
-    </div>
+    </>
   );
 }
 
