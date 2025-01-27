@@ -18,6 +18,9 @@ from algorithm_to_find_combinations.algorithm import (
     update_state,
 )
 from crud.test import get_test
+from fastapi.responses import StreamingResponse
+import csv
+from io import StringIO
 
 router = APIRouter(prefix="/test-combinations", tags=["test-combinations"])
 
@@ -254,3 +257,44 @@ def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_
         _sync_algorithm_state(state, result.test_id, db)
 
     return {"message": "Test result recorded successfully"}
+
+
+@router.get("/{test_id}/export-csv")
+def export_test_combinations_csv(test_id: int, db: Session = Depends(get_db)):
+    """Export test combinations for a test as CSV"""
+    combinations = (
+        db.query(TestCombination)
+        .filter(TestCombination.test_id == test_id)
+        .order_by(TestCombination.created_at)
+        .all()
+    )
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(
+        ["ID", "Triangle Size", "Saturation", "Orientation", "Success", "Created At"]
+    )
+
+    # Write data
+    for combo in combinations:
+        writer.writerow(
+            [
+                combo.id,
+                combo.triangle_size,
+                combo.saturation,
+                combo.orientation,
+                "Yes" if combo.success else "No",
+                combo.created_at,
+            ]
+        )
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="test-{test_id}-results.csv"'
+        },
+    )
