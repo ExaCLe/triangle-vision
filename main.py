@@ -32,7 +32,6 @@ else:
     base_path = os.path.dirname(os.path.abspath(__file__))
 
 frontend_build_dir = os.path.join(base_path, "frontend", "build")
-print(f"Files at frontend_build_dir: {os.listdir(frontend_build_dir)}")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=frontend_build_dir), name="static")

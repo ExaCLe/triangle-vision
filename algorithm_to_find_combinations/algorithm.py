@@ -53,7 +53,9 @@ class AlgorithmState:
     def __init__(self, triangle_size_bounds, saturation_bounds, rectangles=None):
         self.triangle_size_bounds = triangle_size_bounds
         self.saturation_bounds = saturation_bounds
-        if rectangles is None:
+        self.new_rectangles = []
+        self.removed_rectangles = []
+        if rectangles is None or len(rectangles) == 0:
             # Initialize with a single rectangle covering the entire space
             self.rectangles = [
                 {
@@ -66,10 +68,9 @@ class AlgorithmState:
                     "false_samples": 0,
                 }
             ]
+            self.new_rectangles.append(self.rectangles[0])
         else:
             self.rectangles = rectangles
-        self.new_rectangles = []
-        self.removed_rectangles = []
 
 
 def get_next_combination(state: AlgorithmState):
