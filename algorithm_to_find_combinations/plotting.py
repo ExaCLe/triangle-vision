@@ -135,9 +135,16 @@ def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, param
     values = df["success_float"].values
     points = df[["triangle_size", "saturation"]].values
 
-    # Extract parameters
-    inner_radius = params.get("inner_radius", 15)
-    outer_radius = params.get("outer_radius", 30)
+    # Get normalized radii for current bounds
+    from ground_truth import get_scaled_radii
+
+    inner_radius, outer_radius = get_scaled_radii(
+        (triangle_size_bounds, saturation_bounds)
+    )
+
+    # Use the scaled radii instead of fixed values
+    inner_radius = params.get("inner_radius", inner_radius)
+    outer_radius = params.get("outer_radius", outer_radius)
 
     # Normalize both the data points and grid points to [0,1] range for each dimension
     triangle_min, triangle_max = triangle_size_bounds
@@ -219,7 +226,13 @@ def create_single_smooth_plot(
     df["success_float"] = df["success"].astype(float)
 
     if smoothing_params is None:
-        smoothing_params = {}
+        # Get default normalized parameters if none provided
+        from ground_truth import get_scaled_radii
+
+        inner_radius, outer_radius = get_scaled_radii(
+            (triangle_size_bounds, saturation_bounds)
+        )
+        smoothing_params = {"inner_radius": inner_radius, "outer_radius": outer_radius}
 
     if smoothing_method == "soft_brush":
         X_smooth, Y_smooth, Z_smooth = compute_soft_brush_smooth(
@@ -297,8 +310,14 @@ def create_plots(
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
 
-    if smoothing_params is None:
-        smoothing_params = {}
+    if smoothing_params is None and smoothing_method == "soft_brush":
+        # Get default normalized parameters if none provided
+        from ground_truth import get_scaled_radii
+
+        inner_radius, outer_radius = get_scaled_radii(
+            (triangle_size_bounds, saturation_bounds)
+        )
+        smoothing_params = {"inner_radius": inner_radius, "outer_radius": outer_radius}
 
     # Create grid for theoretical model
     grid_x = np.linspace(triangle_size_bounds[0], triangle_size_bounds[1], 100)

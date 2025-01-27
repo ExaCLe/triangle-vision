@@ -148,8 +148,7 @@ def run_base_algorithm(
         success = test_combination(
             combination["triangle_size"],
             combination["saturation"],
-            combination["orientation"],
-            (triangle_size_bounds, saturation_bounds),
+            bounds=(triangle_size_bounds, saturation_bounds),
         )
 
         state = update_state(
