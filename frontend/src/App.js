@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import CustomTest from './components/CustomTest';
 import Navbar from './components/Navbar';
 import TestCard from './components/TestCard';
+import PlayTest from './components/PlayTest';
 import './css/App.css';
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
             </div>
           } />
           <Route path="/custom-test" element={<CustomTest />} />
+          <Route path="/play-test/:testId" element={<PlayTest />} />
         </Routes>
       </div>
     </Router>
