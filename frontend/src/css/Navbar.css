@@ -76,3 +76,15 @@
   padding-top: 1.5rem;
   padding-bottom: 1.5rem;
 }
+
+.text-black {
+  color: #000000;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+a { 
+  text-decoration-line: none;
+}
