@@ -19,7 +19,7 @@ function App() {
   const refetchTests = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/tests/");
+      const response = await fetch("http://localhost:8000/api/tests/");
       if (!response.ok) {
         throw new Error("Failed to fetch tests");
       }
@@ -40,8 +40,8 @@ function App() {
   const handleTestSubmit = async (testData, testId = null) => {
     try {
       const url = testId
-        ? `http://localhost:8000/tests/${testId}`
-        : "http://localhost:8000/tests/";
+        ? `http://localhost:8000/api/tests/${testId}`
+        : "http://localhost:8000/api/tests/";
 
       console.log(testData);
       const response = await fetch(url, {
@@ -69,9 +69,12 @@ function App() {
 
   const handleDeleteTest = async (testId) => {
     try {
-      const response = await fetch(`http://localhost:8000/tests/${testId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/tests/${testId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to delete test");

@@ -34,7 +34,7 @@ function PlayTest() {
   const fetchNextCombination = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/test-combinations/next/${testId}`
+        `http://localhost:8000/api/test-combinations/next/${testId}`
       );
       const data = await response.json();
       setCurrentTest(data);
@@ -65,7 +65,7 @@ function PlayTest() {
       }, 500);
 
       // Send result to server (no need to await)
-      fetch("http://localhost:8000/test-combinations/result", {
+      fetch("http://localhost:8000/api/test-combinations/result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

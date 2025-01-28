@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import '../css/Modal.css';
+import { useState, useEffect } from "react";
+import "../css/Modal.css";
 
 function DeleteTestModal({ isOpen, onClose, onRefetch }) {
   const [tests, setTests] = useState([]);
@@ -12,26 +12,29 @@ function DeleteTestModal({ isOpen, onClose, onRefetch }) {
 
   const fetchTests = async () => {
     try {
-      const response = await fetch('http://localhost:8000/tests/');
+      const response = await fetch("http://localhost:8000/api/tests/");
       const data = await response.json();
       setTests(data);
     } catch (error) {
-      console.error('Error fetching tests:', error);
+      console.error("Error fetching tests:", error);
     }
   };
 
   const handleDelete = async (testId) => {
     try {
-      const response = await fetch(`http://localhost:8000/tests/${testId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/tests/${testId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (response.ok) {
         await onRefetch();
-        setTests(tests.filter(test => test.id !== testId));
+        setTests(tests.filter((test) => test.id !== testId));
       }
     } catch (error) {
-      console.error('Error deleting test:', error);
+      console.error("Error deleting test:", error);
     }
   };
 
@@ -42,10 +45,10 @@ function DeleteTestModal({ isOpen, onClose, onRefetch }) {
       <div className="modal-content">
         <h2>Delete Test</h2>
         <div className="test-list">
-          {tests.map(test => (
+          {tests.map((test) => (
             <div key={test.id} className="test-item">
               <span>{test.title}</span>
-              <button 
+              <button
                 className="delete-btn"
                 onClick={() => handleDelete(test.id)}
               >

@@ -16,7 +16,7 @@ function TestVisualization() {
     try {
       setLoading(true);
       const response = await fetch(
-        `http://localhost:8000/tests/${testId}/plot?show_rectangles=${showRects}`
+        `http://localhost:8000/api/tests/${testId}/plot?show_rectangles=${showRects}`
       );
       if (!response.ok) {
         throw new Error("Failed to fetch plot");
@@ -48,7 +48,7 @@ function TestVisualization() {
   const handleDownloadCSV = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/test-combinations/${testId}/export-csv`
+        `http://localhost:8000/api/test-combinations/${testId}/export-csv`
       );
       if (!response.ok) throw new Error("Failed to download CSV");
       const blob = await response.blob();
