@@ -1,8 +1,8 @@
-import "./css/App.css";
+import "../css/App.css";
 import { useEffect, useState, useRef } from "react";
-import Content from "./components/Content";
-import Options from "./components/Options";
-import { invertColor } from "./helpers";
+import Content from "./Content";
+import Options from "./Options";
+import { invertColor } from "../helpers";
 import {
   APP_STATE,
   startResults,
@@ -10,9 +10,9 @@ import {
   ARROW_DOWN,
   ARROW_LEFT,
   ARROW_RIGHT,
-} from "./AppConstants";
-import FinalScore from "./components/FinalScore";
-import AnswerFeedback from "./components/AnswerFeedback";
+} from "../AppConstants";
+import FinalScore from "./FinalScore";
+import AnswerFeedback from "./AnswerFeedback";
 
 const {
   OPTIONS,
@@ -22,7 +22,7 @@ const {
   SHOW_FINAL_SCORE,
 } = APP_STATE;
 
-function App() {
+function CustomTest() {
   // internal state
   const [appState, setAppState] = useState(OPTIONS);
   const [error, setError] = useState("");
@@ -238,4 +238,4 @@ function App() {
   );
 }
 
-export default App;
+export default CustomTest;
