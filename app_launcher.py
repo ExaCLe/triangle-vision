@@ -7,7 +7,7 @@ import time
 
 def open_browser():
     time.sleep(1.5)  # Wait for server to start
-    webbrowser.open("http://localhost:8000/static/index.html")
+    webbrowser.open("http://localhost:8000")
 
 
 if __name__ == "__main__":
