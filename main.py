@@ -34,13 +34,8 @@ else:
 frontend_build_dir = os.path.join(base_path, "frontend", "build")
 
 # Mount static files
-app.mount("/static", StaticFiles(directory=frontend_build_dir), name="static")
+app.mount("/", StaticFiles(directory=frontend_build_dir), name="static")
 
 # Include routers
 app.include_router(test_router.router)
 app.include_router(test_combination_router.router)
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
