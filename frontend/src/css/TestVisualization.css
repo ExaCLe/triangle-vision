@@ -95,6 +95,8 @@
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  max-width: 70vw;    /* Changed from 800px to 70vw */
+  margin: 0 auto;    /* Center the container */
 }
 
 .loading-placeholder {
@@ -102,6 +104,19 @@
   aspect-ratio: 16/9;
   background-color: #f0f0f0;
   border-radius: 4px;
+}
+
+.visualization-image {
+  overflow: hidden;   /* Contain the image */
+  display: flex;      /* Center the image */
+  justify-content: center;
+  align-items: center;
+}
+
+.visualization-image img {
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 /* Custom switch styling */
