@@ -154,7 +154,7 @@ function CustomTest() {
           colorCircle,
           duration,
           orientation,
-          "correct",
+          correct,
           responseTime,
         ],
       ],
