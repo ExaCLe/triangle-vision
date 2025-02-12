@@ -12,6 +12,9 @@ function Navbar({ onCreateClick }) {
             </h1>
           </Link>
           <div className="flex items-center gap-4">
+            <Link to="/" className="btn btn-ghost">
+              Home
+            </Link>
             <Link to="/custom-test" className="btn btn-ghost">
               Custom Test
             </Link>
