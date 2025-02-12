@@ -7,6 +7,7 @@ import PlayTest from "./components/PlayTest";
 import TestVisualization from "./components/TestVisualization";
 import "./css/App.css";
 import Navbar from "./components/Navbar";
+import { ThemeProvider } from "./context/ThemeContext";
 
 function App() {
   const [tests, setTests] = useState([]);
@@ -94,60 +95,62 @@ function App() {
   };
 
   return (
-    <Router>
-      <div className="app">
-        <Navbar
-          onCreateClick={() => {
-            setSelectedTest(null);
-            setModalMode("create");
-            setIsTestModalOpen(true);
-          }}
-        />
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <main className="container py-6">
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {loading ? (
-                    <p>Loading tests...</p>
-                  ) : error ? (
-                    <p className="error-message">{error}</p>
-                  ) : tests.length === 0 ? (
-                    <p>No tests available</p>
-                  ) : (
-                    tests.map((test) => (
-                      <TestCard
-                        key={test.id}
-                        test={test}
-                        onEdit={handleEditTest}
-                        onDelete={handleDeleteTest}
-                      />
-                    ))
-                  )}
-                </div>
-              </main>
-            }
+    <ThemeProvider>
+      <Router>
+        <div className="app">
+          <Navbar
+            onCreateClick={() => {
+              setSelectedTest(null);
+              setModalMode("create");
+              setIsTestModalOpen(true);
+            }}
           />
-          <Route path="/custom-test" element={<CustomTest />} />
-          <Route path="/play-test/:testId" element={<PlayTest />} />
-          <Route
-            path="/test-visualization/:testId"
-            element={<TestVisualization />}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <main className="container py-6">
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {loading ? (
+                      <p>Loading tests...</p>
+                    ) : error ? (
+                      <p className="error-message">{error}</p>
+                    ) : tests.length === 0 ? (
+                      <p>No tests available</p>
+                    ) : (
+                      tests.map((test) => (
+                        <TestCard
+                          key={test.id}
+                          test={test}
+                          onEdit={handleEditTest}
+                          onDelete={handleDeleteTest}
+                        />
+                      ))
+                    )}
+                  </div>
+                </main>
+              }
+            />
+            <Route path="/custom-test" element={<CustomTest />} />
+            <Route path="/play-test/:testId" element={<PlayTest />} />
+            <Route
+              path="/test-visualization/:testId"
+              element={<TestVisualization />}
+            />
+          </Routes>
+          <TestFormModal
+            isOpen={isTestModalOpen}
+            onClose={() => {
+              setIsTestModalOpen(false);
+              setSelectedTest(null);
+            }}
+            onSubmit={(data) => handleTestSubmit(data, selectedTest?.id)}
+            mode={modalMode}
+            defaultValues={selectedTest}
           />
-        </Routes>
-        <TestFormModal
-          isOpen={isTestModalOpen}
-          onClose={() => {
-            setIsTestModalOpen(false);
-            setSelectedTest(null);
-          }}
-          onSubmit={(data) => handleTestSubmit(data, selectedTest?.id)}
-          mode={modalMode}
-          defaultValues={selectedTest}
-        />
-      </div>
-    </Router>
+        </div>
+      </Router>
+    </ThemeProvider>
   );
 }
 

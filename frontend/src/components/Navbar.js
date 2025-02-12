@@ -1,13 +1,16 @@
 import { Link } from "react-router-dom";
 import "../css/Navbar.css";
+import { useTheme } from "../context/ThemeContext";
 
 function Navbar({ onCreateClick }) {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className="container">
       <div className="py-6">
         <div className="flex items-center justify-between">
           <Link to="/" className="no-underline">
-            <h1 className="text-3xl font-bold tracking-tight text-black">
+            <h1 className="text-3xl font-bold tracking-tight">
               Triangle Vision
             </h1>
           </Link>
@@ -18,6 +21,13 @@ function Navbar({ onCreateClick }) {
             <Link to="/custom-test" className="btn btn-ghost">
               Custom Test
             </Link>
+            <button
+              className="btn btn-icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              <span className="icon">{theme === "light" ? "🌙" : "☀️"}</span>
+            </button>
             <button className="create-test-btn" onClick={onCreateClick}>
               <svg
                 className="plus-icon"
