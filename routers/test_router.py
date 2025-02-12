@@ -2,16 +2,20 @@ import matplotlib
 
 matplotlib.use("Agg")  # Set the backend to non-interactive Agg
 import matplotlib.pyplot as plt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from db.database import get_db
 from models.test import TestCreate, TestUpdate, TestResponse, Test, Rectangle
 import crud.test as crud
 import io
-from algorithm_to_find_combinations.plotting import create_single_smooth_plot
+from algorithm_to_find_combinations.plotting import (
+    create_single_smooth_plot,
+    compute_soft_brush_smooth,
+)
 from fastapi.responses import StreamingResponse
 from algorithm_to_find_combinations.algorithm import AlgorithmState, update_state
+import base64
 
 router = APIRouter(prefix="/tests", tags=["tests"])
 
@@ -130,7 +134,9 @@ def delete_test(test_id: int, db: Session = Depends(get_db)):
 @router.get("/{test_id}/plot")
 def get_test_plot(
     test_id: int,
-    show_rectangles: bool = False,  # Add query parameter
+    show_rectangles: bool = False,
+    step: float = None,  # new query parameter for step size
+    threshold: float = 0.75,  # new query parameter for threshold line value
     db: Session = Depends(get_db),
 ):
     db_test = crud.get_test(db=db, test_id=test_id)
@@ -148,11 +154,9 @@ def get_test_plot(
             }
             for c in db_test.combinations
         ]
-
         triangle_size_bounds = (db_test.min_triangle_size, db_test.max_triangle_size)
         saturation_bounds = (db_test.min_saturation, db_test.max_saturation)
 
-        # Convert rectangles to the format expected by plotting function
         rectangles = None
         if show_rectangles:
             rectangles = [
@@ -165,21 +169,46 @@ def get_test_plot(
                 for r in db_test.rectangles
             ]
 
-        create_single_smooth_plot(
+        # Call the plotting function and capture smooth arrays
+        X_s, Y_s, Z_s = create_single_smooth_plot(
             combinations,
-            triangle_size_bounds=triangle_size_bounds,
-            saturation_bounds=saturation_bounds,
+            triangle_size_bounds,
+            saturation_bounds,
             smoothing_method="soft_brush",
             ax=ax,
-            rectangles=rectangles,  # Pass rectangles to plotting function
+            rectangles=rectangles,
+            threshold=threshold,
         )
-
+        # Save image (without extra contour line overlaid)
         buf = io.BytesIO()
         plt.savefig(buf, format="png", bbox_inches="tight", dpi=300)
         buf.seek(0)
         plt.close(fig)
+        img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        return StreamingResponse(buf, media_type="image/png")
+        plot_data = []
+        if step:
+            import numpy as np
+
+            # Extract contour segments at exactly 0.75 without drawing them
+            CS = ax.contour(X_s, Y_s, Z_s, levels=[threshold], colors="none")
+            segments = CS.allsegs[0]  # segments for level 0.75
+            tol = step / 2
+            for x_val in np.arange(
+                triangle_size_bounds[0], triangle_size_bounds[1] + step, step
+            ):
+                candidate_sats = []
+                for seg in segments:
+                    # seg is an array of shape (N,2) with col0=X, col1=Y.
+                    matching = seg[abs(seg[:, 0] - x_val) <= tol]
+                    if matching.size:
+                        candidate_sats.extend(matching[:, 1].tolist())
+                if candidate_sats:
+                    min_sat = float(min(candidate_sats))
+                    plot_data.append(
+                        {"triangle_size": float(x_val), "saturation": min_sat}
+                    )
+        return {"image": img_base64, "plot_data": plot_data}
     except Exception as e:
         plt.close("all")
         raise HTTPException(status_code=500, detail=str(e))

@@ -218,6 +218,7 @@ def create_single_smooth_plot(
     smoothing_params=None,
     ax=None,
     rectangles=None,  # Add rectangles parameter
+    threshold=0.75,
 ):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
@@ -244,7 +245,12 @@ def create_single_smooth_plot(
             vmax=1.0,
         )
         ax.contour(
-            X_smooth, Y_smooth, Z_smooth, levels=[0.7], colors="black", linewidths=2
+            X_smooth,
+            Y_smooth,
+            Z_smooth,
+            levels=[threshold],
+            colors="black",
+            linewidths=2,
         )
 
         # Add rectangle visualization if provided
@@ -289,6 +295,7 @@ def create_single_smooth_plot(
         plt.colorbar(contour_smooth, ax=ax, label="Success Rate")
     else:
         raise ValueError(f"Unknown smoothing method: {smoothing_method}")
+    return X_smooth, Y_smooth, Z_smooth
 
 
 def compute_error(Z_smooth, Z_model):

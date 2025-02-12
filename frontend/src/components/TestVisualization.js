@@ -6,43 +6,63 @@ import "../css/TestVisualization.css";
 
 function TestVisualization() {
   const { testId } = useParams();
-  const [plotUrl, setPlotUrl] = useState(null);
+  const [plotData, setPlotData] = useState([]);
+  const [plotImage, setPlotImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRectangles, setShowRectangles] = useState(false);
-  const [showPlot, setShowPlot] = useState(false);
+  const [stepValue, setStepValue] = useState("10"); // new state for step size
+  const [thresholdValue, setThresholdValue] = useState("0.75"); // new state for threshold line
 
-  const fetchPlot = async (showRects) => {
+  const fetchPlotData = async (showRects) => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `http://localhost:8000/api/tests/${testId}/plot?show_rectangles=${showRects}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch plot");
+      let url = `http://localhost:8000/api/tests/${testId}/plot?show_rectangles=${showRects}`;
+      if (stepValue && !isNaN(stepValue)) {
+        url += `&step=${stepValue}`;
       }
-      const blob = await response.blob();
-      setPlotUrl(URL.createObjectURL(blob));
-      setShowPlot(true);
+      if (thresholdValue && !isNaN(thresholdValue)) {
+        url += `&threshold=${thresholdValue}`;
+      }
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch plot data");
+      }
+      const data = await response.json();
+      setPlotData(data.plot_data);
+      setPlotImage(`data:image/png;base64,${data.image}`);
+      setError(null);
     } catch (err) {
       setError(err.message);
+      setPlotData([]);
+      setPlotImage(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPlot(showRectangles);
-  }, [testId, showRectangles]);
+    fetchPlotData(showRectangles);
+  }, [testId, showRectangles, stepValue, thresholdValue]);
 
   const handleDownloadPlot = () => {
-    if (!plotUrl) return;
+    if (!plotImage) return;
+    const byteString = atob(plotImage.split(",")[1]);
+    const mimeString = plotImage.split(",")[0].split(":")[1].split(";")[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeString });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = plotUrl;
+    link.href = url;
     link.download = `test-${testId}-visualization.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleDownloadCSV = async () => {
@@ -65,8 +85,6 @@ function TestVisualization() {
     }
   };
 
-  if (error) return <div className="error-message">Error: {error}</div>;
-
   return (
     <div className="visualization-container">
       <div className="visualization-header">
@@ -85,18 +103,47 @@ function TestVisualization() {
             </label>
             <label>Show Rectangles</label>
           </div>
+          {/* New control for step size */}
+          <div className="control-group">
+            <label>Step Size:</label>
+            <input
+              type="number"
+              value={stepValue}
+              onChange={(e) => setStepValue(e.target.value)}
+              style={{ width: "60px", marginLeft: "5px" }}
+            />
+          </div>
+          {/* New control for threshold line */}
+          <div className="control-group">
+            <label>Threshold Line:</label>
+            <input
+              type="number"
+              step="0.01"
+              value={thresholdValue}
+              onChange={(e) => setThresholdValue(e.target.value)}
+              style={{ width: "60px", marginLeft: "5px" }}
+            />
+          </div>
           <button
             className="visualization-btn"
-            onClick={() => fetchPlot(showRectangles)}
+            onClick={() => fetchPlotData(showRectangles)}
             disabled={loading}
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
-          <button className="visualization-btn" onClick={handleDownloadCSV}>
+          <button
+            className="visualization-btn"
+            onClick={handleDownloadCSV}
+            disabled={!plotData.length}
+          >
             Download CSV
           </button>
-          {showPlot && (
-            <button className="visualization-btn" onClick={handleDownloadPlot}>
+          {plotImage && (
+            <button
+              className="visualization-btn"
+              onClick={handleDownloadPlot}
+              disabled={!plotImage}
+            >
               Download Chart
             </button>
           )}
@@ -106,13 +153,30 @@ function TestVisualization() {
       <div className="visualization-content">
         {loading ? (
           <div className="loading-placeholder" />
+        ) : error ? (
+          <div className="error-message">Error: {error}</div>
         ) : (
-          showPlot &&
-          plotUrl && (
-            <div className="visualization-image">
-              <img src={plotUrl} alt="Test visualization" />
+          <>
+            {plotImage && (
+              <div className="visualization-image">
+                <img src={plotImage} alt="Test visualization" />
+              </div>
+            )}
+            <div className="plot-data">
+              {plotData.length > 0 ? (
+                <ul>
+                  {plotData.map((item, index) => (
+                    <li key={index}>
+                      Triangle Size: {item.triangle_size}, Saturation:{" "}
+                      {item.saturation}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No matching data found.</p>
+              )}
             </div>
-          )
+          </>
         )}
       </div>
     </div>
