@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { useTheme } from "../context/ThemeContext"; // Added import
 import Content from "./Content";
 
 function PlayTest() {
@@ -7,6 +8,7 @@ function PlayTest() {
   const [currentTest, setCurrentTest] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [startTime, setStartTime] = useState(null);
+  const { theme } = useTheme(); // Get current theme
 
   const hslToRgb = (h, s, l) => {
     // Convert saturation and lightness to decimal
@@ -138,7 +140,13 @@ function PlayTest() {
             sideLength={currentTest.triangle_size}
             diameter={800}
             colorCircle="#1a1a1a"
-            colorTriangle={hslToRgb(0, 0, (1 - currentTest.saturation) * 100)}
+            colorTriangle={hslToRgb(
+              0,
+              0,
+              theme === "light"
+                ? (1 - currentTest.saturation) * 100
+                : currentTest.saturation * 100
+            )}
             orientation={currentTest.orientation}
           />
         ) : (

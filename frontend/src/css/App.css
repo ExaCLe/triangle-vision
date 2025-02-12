@@ -11,7 +11,7 @@
 }
 
 [data-theme='dark'] {
-  --background: #1a1a1a;
+  --background: #000000;
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --card-background: #262626;
