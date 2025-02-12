@@ -265,10 +265,19 @@ def create_single_smooth_plot(
                 )
                 ax.add_patch(rect_patch)
 
+        # Filter points within the bounds
+        within_bounds = (
+            (df["triangle_size"] >= triangle_size_bounds[0])
+            & (df["triangle_size"] <= triangle_size_bounds[1])
+            & (df["saturation"] >= saturation_bounds[0])
+            & (df["saturation"] <= saturation_bounds[1])
+        )
+        df_within_bounds = df[within_bounds]
+
         ax.scatter(
-            df["triangle_size"],
-            df["saturation"],
-            c=df["success_float"],
+            df_within_bounds["triangle_size"],
+            df_within_bounds["saturation"],
+            c=df_within_bounds["success_float"],
             cmap="RdYlGn",
             vmin=0.6,
             vmax=1.0,  # Fixed color map limits
