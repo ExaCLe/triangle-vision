@@ -138,7 +138,7 @@ function PlayTest() {
             sideLength={currentTest.triangle_size}
             diameter={800}
             colorCircle="#1a1a1a"
-            colorTriangle={hslToRgb(0, 0, currentTest.saturation * 100)}
+            colorTriangle={hslToRgb(0, 0, (1 - currentTest.saturation) * 100)}
             orientation={currentTest.orientation}
           />
         ) : (
