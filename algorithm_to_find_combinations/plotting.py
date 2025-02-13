@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
-from .ground_truth import ground_truth_probability, get_scaled_radii
+from ground_truth import ground_truth_probability, get_scaled_radii
 import matplotlib.patches as patches  # Ensure this import is present
 
 # Define uniform levels

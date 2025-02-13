@@ -1,7 +1,7 @@
 import random
 import colorsys
 from tqdm import tqdm
-from .ground_truth import test_combination
+from ground_truth import test_combination
 
 # Remove hardcoded bounds and just keep orientations
 orientations = ["N", "S", "E", "W"]
@@ -93,6 +93,18 @@ def get_next_combination(state: AlgorithmState):
     }, selected_rect
 
 
+def get_next_combinations_confidence_bounds(state):
+    """Placeholder for confidence bounds sampling strategy"""
+    # For now, just return a fixed combination for testing
+    if len(state.rectangles) == 0:
+        return None, None
+    rect = state.rectangles[0]
+    return {
+        "triangle_size": 175,  # Middle of triangle_size_bounds
+        "saturation": 0.75,  # Middle of saturation_bounds
+    }, rect
+
+
 def update_state(
     state: AlgorithmState,
     selected_rect,
@@ -136,13 +148,21 @@ def run_base_algorithm(
     success_rate_threshold=0.85,
     total_samples_threshold=5,
     test_combination=test_combination,
+    get_next_combination_strategy="rectangles",  # New parameter
 ):
     """Keep original function working by using the new stateful version internally"""
     state = AlgorithmState(triangle_size_bounds, saturation_bounds)
     combinations = []
 
+    if get_next_combination_strategy == "rectangles":
+        get_next_combination_strategy = get_next_combination
+    elif get_next_combination_strategy == "confidence_bounds":
+        get_next_combination_strategy = get_next_combinations_confidence_bounds
+    else:
+        raise ValueError("Invalid strategy")
+
     for _ in tqdm(range(iterations), desc="Sampling Iterations"):
-        combination, selected_rect = get_next_combination(state)
+        combination, selected_rect = get_next_combination_strategy(state)
         if not combination:
             break
 
