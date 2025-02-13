@@ -179,10 +179,12 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    # Get total samples count
+    # Get total samples count and add 1 to include the combination we're about to test
     total_samples = (
         db.query(TestCombination).filter(TestCombination.test_id == test_id).count()
     )
+
+    print(total_samples)
 
     state = _load_algorithm_state(db, test_id)
     combination, selected_rect = get_next_combination(state)
@@ -213,7 +215,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         "saturation": combination["saturation"],
         "orientation": random.choice(orientations),
         "success": 0,  # Initial success value
-        "total_samples": total_samples,  # Add total samples to response
+        "total_samples": total_samples,  # This now includes the current combination
     }
 
 

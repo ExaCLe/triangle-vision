@@ -51,7 +51,6 @@ function PlayTest() {
 
   const submitResult = async (success) => {
     if (!currentTest) return;
-
     const answerTime = Date.now() - startTime;
 
     try {
@@ -61,16 +60,8 @@ function PlayTest() {
         time: answerTime,
       });
 
-      // Fetch next combination immediately
-      fetchNextCombination();
-
-      // Clear feedback after 500ms
-      setTimeout(() => {
-        setFeedback(null);
-      }, 500);
-
-      // Send result to server (no need to await)
-      fetch("http://localhost:8000/api/test-combinations/result", {
+      // First, send result to server and wait for it to complete
+      await fetch("http://localhost:8000/api/test-combinations/result", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,6 +69,14 @@ function PlayTest() {
           success: success ? 1 : 0,
         }),
       });
+
+      // Then fetch next combination
+      fetchNextCombination();
+
+      // Clear feedback after 500ms
+      setTimeout(() => {
+        setFeedback(null);
+      }, 500);
     } catch (error) {
       console.error("Error submitting result:", error);
     }

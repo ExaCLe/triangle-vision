@@ -9,6 +9,9 @@
   padding-right: 1.5rem;
   position: relative;
   margin: 0 auto;
+  position: absolute; 
+  bottom: 20px; 
+  right: 0px;
 }
 
 .play-info {
