@@ -71,7 +71,13 @@ function TestVisualization() {
         `http://localhost:8000/api/test-combinations/${testId}/export-csv`
       );
       if (!response.ok) throw new Error("Failed to download CSV");
-      const blob = await response.blob();
+      // Convert the response to text instead of blob to modify the separator
+      const text = await response.text();
+      // Replace commas with semicolons
+      const modifiedText = text.replace(/,/g, ";");
+      const blob = new Blob([modifiedText], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -85,68 +91,96 @@ function TestVisualization() {
     }
   };
 
+  const handleDownloadCombinationsCSV = () => {
+    if (!plotData.length) return;
+
+    // Create CSV content with semicolons
+    const csvContent = [
+      "Triangle Size;Saturation",
+      ...plotData.map(
+        (item) => `${item.triangle_size};${item.saturation.toFixed(5)}`
+      ),
+    ].join("\n");
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `test-${testId}-combinations.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="visualization-container">
       <div className="visualization-header">
-        <div>
+        <div className="header-top">
           <h4 className="visualization-title">Test Results</h4>
-        </div>
-        <div className="controls">
-          <div className="control-group">
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={showRectangles}
-                onChange={(e) => setShowRectangles(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-            <label>Show Rectangles</label>
+          <div className="controls-container">
+            <div className="visualization-controls">
+              <div className="control-group">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={showRectangles}
+                    onChange={(e) => setShowRectangles(e.target.checked)}
+                  />
+                  <span className="slider"></span>
+                </label>
+                <label>Show Rectangles</label>
+              </div>
+              <div className="control-group">
+                <label>Step Size</label>
+                <input
+                  type="number"
+                  value={stepValue}
+                  onChange={(e) => setStepValue(e.target.value)}
+                  min="1"
+                  max="100"
+                />
+              </div>
+              <div className="control-group">
+                <label>Threshold Line</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={thresholdValue}
+                  onChange={(e) => setThresholdValue(e.target.value)}
+                  min="0"
+                  max="1"
+                />
+              </div>
+            </div>
+
+            <div className="action-buttons">
+              <button
+                className="visualization-btn"
+                onClick={() => fetchPlotData(showRectangles)}
+                disabled={loading}
+              >
+                {loading ? "Loading..." : "Refresh"}
+              </button>
+              <button
+                className="visualization-btn"
+                onClick={handleDownloadCSV}
+                disabled={!plotData.length}
+              >
+                Download CSV
+              </button>
+              {plotImage && (
+                <button
+                  className="visualization-btn"
+                  onClick={handleDownloadPlot}
+                  disabled={!plotImage}
+                >
+                  Download Chart
+                </button>
+              )}
+            </div>
           </div>
-          {/* New control for step size */}
-          <div className="control-group">
-            <label>Step Size:</label>
-            <input
-              type="number"
-              value={stepValue}
-              onChange={(e) => setStepValue(e.target.value)}
-              style={{ width: "60px", marginLeft: "5px" }}
-            />
-          </div>
-          {/* New control for threshold line */}
-          <div className="control-group">
-            <label>Threshold Line:</label>
-            <input
-              type="number"
-              step="0.01"
-              value={thresholdValue}
-              onChange={(e) => setThresholdValue(e.target.value)}
-              style={{ width: "60px", marginLeft: "5px" }}
-            />
-          </div>
-          <button
-            className="visualization-btn"
-            onClick={() => fetchPlotData(showRectangles)}
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-          <button
-            className="visualization-btn"
-            onClick={handleDownloadCSV}
-            disabled={!plotData.length}
-          >
-            Download CSV
-          </button>
-          {plotImage && (
-            <button
-              className="visualization-btn"
-              onClick={handleDownloadPlot}
-              disabled={!plotImage}
-            >
-              Download Chart
-            </button>
-          )}
         </div>
       </div>
 
@@ -157,21 +191,49 @@ function TestVisualization() {
           <div className="error-message">Error: {error}</div>
         ) : (
           <>
-            {plotImage && (
-              <div className="visualization-image">
-                <img src={plotImage} alt="Test visualization" />
-              </div>
-            )}
-            <div className="plot-data">
+            <div className="visualization-section">
+              {plotImage && (
+                <div className="visualization-image">
+                  <img src={plotImage} alt="Test visualization" />
+                </div>
+              )}
+            </div>
+
+            <div className="combinations-section">
               {plotData.length > 0 ? (
-                <ul>
-                  {plotData.map((item, index) => (
-                    <li key={index}>
-                      Triangle Size: {item.triangle_size}, Saturation:{" "}
-                      {item.saturation}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className="table-header">
+                    <h3 className="table-title">
+                      Triangle Size Saturation Combinations
+                    </h3>
+                    <button
+                      className="visualization-btn"
+                      onClick={handleDownloadCombinationsCSV}
+                    >
+                      Download CSV
+                    </button>
+                  </div>
+                  <div className="results-table-container">
+                    <table className="results-table">
+                      <thead>
+                        <tr>
+                          <th className="w-[150px]">Triangle Size</th>
+                          <th>Saturation</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {plotData.map((item) => (
+                          <tr key={item.triangle_size}>
+                            <td>{item.triangle_size}</td>
+                            <td className="mono">
+                              {item.saturation.toFixed(5)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               ) : (
                 <p>No matching data found.</p>
               )}
