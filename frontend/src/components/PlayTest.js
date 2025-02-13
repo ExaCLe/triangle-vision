@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom"; // Added Link import
 import { useTheme } from "../context/ThemeContext"; // Added import
 import Content from "./Content";
+import "../css/PlayTest.css";
 
 function PlayTest() {
   const { testId } = useParams();
@@ -9,6 +10,7 @@ function PlayTest() {
   const [feedback, setFeedback] = useState(null);
   const [startTime, setStartTime] = useState(null);
   const { theme } = useTheme(); // Get current theme
+  const [totalSamples, setTotalSamples] = useState(0); // Added state for total samples
 
   const hslToRgb = (h, s, l) => {
     // Convert saturation and lightness to decimal
@@ -41,6 +43,7 @@ function PlayTest() {
       const data = await response.json();
       setCurrentTest(data);
       setStartTime(Date.now());
+      setTotalSamples(data.total_samples); // Use the total_samples from API instead of incrementing
     } catch (error) {
       console.error("Error fetching next combination:", error);
     }
@@ -127,14 +130,18 @@ function PlayTest() {
 
   return (
     <>
-      <div
-        className="play-test-container"
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
+      <div className="play-page">
+        <div className="play-info">
+          <span className="sample-count">#{totalSamples}</span>
+          <Link
+            to={`/test-visualization/${testId}`}
+            className="btn btn-outline btn-icon"
+          >
+            <span className="icon">📊</span>
+          </Link>
+        </div>
+      </div>
+      <div className="play-test-container">
         {currentTest ? (
           <Content
             sideLength={currentTest.triangle_size}
@@ -152,20 +159,20 @@ function PlayTest() {
         ) : (
           <div>Loading...</div>
         )}
+        {feedback && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              width: "100%",
+              height: "20px", // Made taller
+              backgroundColor: feedback.correct ? "#4CAF50" : "#F44336",
+              transition: "all 0.3s ease",
+            }}
+          />
+        )}
       </div>
-      {feedback && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            width: "100%",
-            height: "20px", // Made taller
-            backgroundColor: feedback.correct ? "#4CAF50" : "#F44336",
-            transition: "all 0.3s ease",
-          }}
-        />
-      )}
     </>
   );
 }

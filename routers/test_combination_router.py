@@ -179,6 +179,11 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
+    # Get total samples count
+    total_samples = (
+        db.query(TestCombination).filter(TestCombination.test_id == test_id).count()
+    )
+
     state = _load_algorithm_state(db, test_id)
     combination, selected_rect = get_next_combination(state)
     if not combination:
@@ -200,7 +205,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         .first()
     )
 
-    # Return combination without saving to database
+    # Return combination with total_samples included
     return {
         "test_id": test_id,
         "rectangle_id": db_rectangle.id,
@@ -208,6 +213,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         "saturation": combination["saturation"],
         "orientation": random.choice(orientations),
         "success": 0,  # Initial success value
+        "total_samples": total_samples,  # Add total samples to response
     }
 
 
