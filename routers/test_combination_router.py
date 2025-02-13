@@ -184,8 +184,6 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         db.query(TestCombination).filter(TestCombination.test_id == test_id).count()
     )
 
-    print(total_samples)
-
     state = _load_algorithm_state(db, test_id)
     combination, selected_rect = get_next_combination(state)
     if not combination:
