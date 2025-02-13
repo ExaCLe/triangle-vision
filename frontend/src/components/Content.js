@@ -19,15 +19,6 @@ const Content = (props) => {
           color={colorTriangle}
           orientation={orientation}
         />
-        <div
-          id="circle"
-          data-testid="circle"
-          style={{
-            width: diameter,
-            height: diameter,
-            backgroundColor: colorCircle,
-          }}
-        ></div>
       </div>
     </>
   );

@@ -31,7 +31,7 @@ app.include_router(test_combination_router.router, prefix="/api")
 # Determine the absolute path to the frontend build
 if getattr(sys, "frozen", False):
     # If the application is run as a bundle (PyInstaller)
-    base_path = sys._MEIPASS
+    base_path = sys._MEIPASS  # type: ignore
 else:
     # If the application is run normally
     base_path = os.path.dirname(os.path.abspath(__file__))

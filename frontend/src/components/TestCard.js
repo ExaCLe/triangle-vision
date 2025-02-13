@@ -42,7 +42,7 @@ function TestCard({ test, onEdit, onDelete }) {
           to={`/test-visualization/${id}`}
           className="btn btn-outline btn-icon"
         >
-          <span className="icon">👁</span>
+          <span className="icon">📊</span>
         </Link>
         <button
           className="btn btn-outline btn-icon"

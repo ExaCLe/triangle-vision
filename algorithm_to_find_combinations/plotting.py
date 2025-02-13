@@ -218,6 +218,7 @@ def create_single_smooth_plot(
     smoothing_params=None,
     ax=None,
     rectangles=None,  # Add rectangles parameter
+    threshold=0.75,
 ):
     df = pd.DataFrame(combinations)
     df["success_float"] = df["success"].astype(float)
@@ -244,7 +245,12 @@ def create_single_smooth_plot(
             vmax=1.0,
         )
         ax.contour(
-            X_smooth, Y_smooth, Z_smooth, levels=[0.7], colors="black", linewidths=2
+            X_smooth,
+            Y_smooth,
+            Z_smooth,
+            levels=[threshold],
+            colors="black",
+            linewidths=2,
         )
 
         # Add rectangle visualization if provided
@@ -265,10 +271,19 @@ def create_single_smooth_plot(
                 )
                 ax.add_patch(rect_patch)
 
+        # Filter points within the bounds
+        within_bounds = (
+            (df["triangle_size"] >= triangle_size_bounds[0])
+            & (df["triangle_size"] <= triangle_size_bounds[1])
+            & (df["saturation"] >= saturation_bounds[0])
+            & (df["saturation"] <= saturation_bounds[1])
+        )
+        df_within_bounds = df[within_bounds]
+
         ax.scatter(
-            df["triangle_size"],
-            df["saturation"],
-            c=df["success_float"],
+            df_within_bounds["triangle_size"],
+            df_within_bounds["saturation"],
+            c=df_within_bounds["success_float"],
             cmap="RdYlGn",
             vmin=0.6,
             vmax=1.0,  # Fixed color map limits
@@ -280,6 +295,7 @@ def create_single_smooth_plot(
         plt.colorbar(contour_smooth, ax=ax, label="Success Rate")
     else:
         raise ValueError(f"Unknown smoothing method: {smoothing_method}")
+    return X_smooth, Y_smooth, Z_smooth
 
 
 def compute_error(Z_smooth, Z_model):
