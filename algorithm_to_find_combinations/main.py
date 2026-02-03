@@ -90,7 +90,7 @@ def main():
 
 
 def main2():
-    iterations = 1000
+    iterations = 350
 
     # Run algorithm with different sampling strategies
     # set seed for reproducibility
@@ -114,7 +114,7 @@ def main2():
         orientations,
         iterations=iterations,
         test_combination=test_combination,  # Same test combination
-        get_next_combination_strategy="rectangles",  # New strategy
+        get_next_combination_strategy="confidence_bounds",  # New strategy
     )
 
     # Define smoothing method and parameters

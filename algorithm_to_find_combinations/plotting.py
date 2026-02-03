@@ -139,9 +139,10 @@ def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, param
         (triangle_size_bounds, saturation_bounds)
     )
 
-    # Use the scaled radii instead of fixed values
-    inner_radius = params.get("inner_radius", inner_radius)
-    outer_radius = params.get("outer_radius", outer_radius)
+    if params is not None:
+        # Use the scaled radii instead of fixed values
+        inner_radius = params.get("inner_radius", inner_radius)
+        outer_radius = params.get("outer_radius", outer_radius)
 
     # Normalize both the data points and grid points to [0,1] range for each dimension
     triangle_min, triangle_max = triangle_size_bounds
@@ -309,7 +310,7 @@ def create_plots(
     combinations,
     triangle_size_bounds,
     saturation_bounds,
-    smoothing_method="knn",
+    smoothing_method="soft_brush",
     smoothing_params=None,
     rectangles=None,
     ax_raw=None,
@@ -353,6 +354,8 @@ def create_plots(
         raise ValueError(f"Unknown smoothing method: {smoothing_method}")
 
     # Compute error
+    # replace nan with 0
+    Z_smooth = np.nan_to_num(Z_smooth)
     error = compute_error(Z_smooth, Z_model)
     print(f"{model_name} - Smoothing Error: {error}")
 

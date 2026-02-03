@@ -50,7 +50,11 @@ NORMALIZED_INNER_RADIUS = normalize_radius(9.8)  # ≈ 0.0392
 NORMALIZED_OUTER_RADIUS = normalize_radius(96.7)  # ≈ 0.3868
 
 
-def get_scaled_radii(bounds):
+def get_scaled_radii(
+    bounds,
+    normalized_inner_radius=NORMALIZED_INNER_RADIUS,
+    normalized_outer_radius=NORMALIZED_OUTER_RADIUS,
+):
     """Get scaled inner and outer radius values for current bounds"""
     inner_radius = scale_radius(NORMALIZED_INNER_RADIUS, bounds[0])
     outer_radius = scale_radius(NORMALIZED_OUTER_RADIUS, bounds[0])
