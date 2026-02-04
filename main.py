@@ -5,10 +5,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from db.database import engine
 from models.test import Base
-from routers import test_router, test_combination_router
+from models import session as session_models
+from routers import test_router, test_combination_router, session_router
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize the database
+_ = session_models  # ensure session models are registered on Base metadata
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -27,6 +29,7 @@ app.add_middleware(
 # First, mount the API routes with a prefix
 app.include_router(test_router.router, prefix="/api")
 app.include_router(test_combination_router.router, prefix="/api")
+app.include_router(session_router.router, prefix="/api")
 
 # Determine the absolute path to the frontend build
 if getattr(sys, "frozen", False):
@@ -39,11 +42,13 @@ else:
 frontend_build_dir = os.path.join(base_path, "frontend", "build")
 
 # Serve static files from the build directory
-app.mount(
-    "/static",
-    StaticFiles(directory=os.path.join(frontend_build_dir, "static")),
-    name="static",
-)
+static_dir = os.path.join(frontend_build_dir, "static")
+if os.path.isdir(static_dir):
+    app.mount(
+        "/static",
+        StaticFiles(directory=static_dir),
+        name="static",
+    )
 
 
 @app.get("/{full_path:path}")
