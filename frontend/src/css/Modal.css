@@ -1,48 +1,61 @@
+/* ═══ Modal (base) ═══ */
+
 .test-list {
   max-height: 300px;
   overflow-y: auto;
   margin-bottom: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .test-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
+  transition: background var(--transition);
+  font-size: 0.85rem;
 }
 
 .test-item:last-child {
   border-bottom: none;
 }
 
+.test-item:hover {
+  background: var(--btn-outline-hover);
+}
+
 .test-item.selected {
-  background-color: #e3f2fd;
+  background: var(--accent-subtle);
 }
 
 .delete-btn {
-  background-color: #dc3545;
+  background: var(--error);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.25rem 0.5rem;
   cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background var(--transition);
 }
 
 .delete-btn:hover {
-  background-color: #c82333;
+  background: #b71c1c;
 }
 
+/* These are overridden by App.css but kept as fallback */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -50,24 +63,38 @@
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   padding: 2rem;
-  border-radius: 8px;
-  max-width: 500px;
+  border-radius: var(--radius-lg);
+  max-width: 550px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
 }
 
 .modal-close {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 1.25rem;
+  right: 1.25rem;
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.35rem;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  background: var(--btn-outline-hover);
+  color: var(--text-primary);
 }

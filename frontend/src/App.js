@@ -118,14 +118,21 @@ function App() {
             <Route
               path="/"
               element={
-                <main className="container py-6">
+                <main className="container" style={{ paddingTop: '2.5rem', paddingBottom: '3rem' }}>
+                  <div className="home-header">
+                    <h1 className="page-title">Your Tests</h1>
+                    <p className="page-subtitle">{tests.length} test{tests.length !== 1 ? 's' : ''} configured</p>
+                  </div>
                   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {loading ? (
-                      <p>Loading tests...</p>
+                      <div className="loading-state">Loading</div>
                     ) : error ? (
                       <p className="error-message">{error}</p>
                     ) : tests.length === 0 ? (
-                      <p>No tests available</p>
+                      <div className="empty-state">
+                        <p>No tests yet</p>
+                        <span className="empty-hint">Create your first test to get started</span>
+                      </div>
                     ) : (
                       tests.map((test) => (
                         <TestCard

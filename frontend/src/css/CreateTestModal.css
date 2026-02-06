@@ -1,90 +1,105 @@
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  padding: 2.5rem;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;  /* Increased from 500px */
-}
+/* ═══ Create/Edit Test Modal ═══ */
 
 .modal-content h2 {
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
-  width: 100%;  /* Ensure full width */
+  margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .form-group input {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .form-group textarea {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  min-height: 120px;  /* Added min-height */
-  resize: vertical;   /* Allow vertical resizing */
-  font-size: 1rem;
-  font-family: inherit;  /* Use the same font as the rest of the form */
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-height: 100px;
+  resize: vertical;
+  font-size: 0.875rem;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .modal-buttons {
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
 }
 
 .modal-buttons button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.55rem 1.1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 1rem;
-  min-width: 100px;  /* Ensure buttons have a minimum width */
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  min-width: 90px;
+  transition: all var(--transition);
 }
 
 .modal-buttons button[type="submit"] {
-  background-color: #007bff;
-  color: white;
+  background: var(--accent);
+  color: #fff;
+}
+
+.modal-buttons button[type="submit"]:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 .modal-buttons button[type="button"] {
-  background-color: #6c757d;
-  color: white;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
-/* Hover effects */
-.modal-buttons button:hover {
-  opacity: 0.9;
+.modal-buttons button[type="button"]:hover {
+  background: var(--btn-outline-hover);
+  color: var(--text-primary);
 }
 
 form {
-    width: 100%;
+  width: 100%;
 }
