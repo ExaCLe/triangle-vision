@@ -280,7 +280,7 @@ def export_test_combinations_csv(test_id: int, db: Session = Depends(get_db)):
 
     # Write header
     writer.writerow(
-        ["ID", "Triangle Size", "Saturation", "Orientation", "Success", "Created At"]
+        ["ID", "Triangle Size", "Saturation", "Orientation", "Success", "Phase", "Created At"]
     )
 
     # Write data
@@ -292,6 +292,7 @@ def export_test_combinations_csv(test_id: int, db: Session = Depends(get_db)):
                 combo.saturation,
                 combo.orientation,
                 "Yes" if combo.success else "No",
+                getattr(combo, "phase", "main") or "main",
                 combo.created_at,
             ]
         )

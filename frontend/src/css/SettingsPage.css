@@ -1,0 +1,86 @@
+.settings-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.settings-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.settings-description {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+.settings-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  background: var(--card-background);
+}
+
+.settings-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.setting-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.setting-field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.setting-field input {
+  padding: 0.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+.setting-help {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.settings-message {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  margin-top: 1rem;
+}
+
+.settings-message.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.settings-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}

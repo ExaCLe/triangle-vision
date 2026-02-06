@@ -1,23 +1,22 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom"; // Added Link import
-import { useTheme } from "../context/ThemeContext"; // Added import
+import { useParams, Link } from "react-router-dom";
+import { useTheme } from "../context/ThemeContext";
 import Content from "./Content";
 import "../css/PlayTest.css";
 
 function PlayTest() {
-  const { testId } = useParams();
+  const { testId, runId } = useParams();
   const [currentTest, setCurrentTest] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [startTime, setStartTime] = useState(null);
-  const { theme } = useTheme(); // Get current theme
-  const [totalSamples, setTotalSamples] = useState(0); // Added state for total samples
+  const { theme } = useTheme();
+  const [totalSamples, setTotalSamples] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState("main");
 
   const hslToRgb = (h, s, l) => {
-    // Convert saturation and lightness to decimal
     s /= 100;
     l /= 100;
 
-    // Edge case - achromatic (gray) if saturation is 0
     if (s === 0) {
       const v = Math.round(l * 255);
       return `rgb(${v}, ${v}, ${v})`;
@@ -37,13 +36,20 @@ function PlayTest() {
 
   const fetchNextCombination = async () => {
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/test-combinations/next/${testId}`
-      );
+      let url;
+      if (runId) {
+        url = `http://localhost:8000/api/runs/${runId}/next`;
+      } else {
+        url = `http://localhost:8000/api/test-combinations/next/${testId}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
       setCurrentTest(data);
       setStartTime(Date.now());
-      setTotalSamples(data.total_samples); // Use the total_samples from API instead of incrementing
+      setTotalSamples(data.total_samples);
+      if (data.phase) {
+        setCurrentPhase(data.phase);
+      }
     } catch (error) {
       console.error("Error fetching next combination:", error);
     }
@@ -54,26 +60,35 @@ function PlayTest() {
     const answerTime = Date.now() - startTime;
 
     try {
-      // Set feedback immediately
       setFeedback({
         correct: success,
         time: answerTime,
       });
 
-      // First, send result to server and wait for it to complete
-      await fetch("http://localhost:8000/api/test-combinations/result", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...currentTest,
-          success: success ? 1 : 0,
-        }),
-      });
+      if (runId) {
+        await fetch(`http://localhost:8000/api/runs/${runId}/result`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            triangle_size: currentTest.triangle_size,
+            saturation: currentTest.saturation,
+            orientation: currentTest.orientation,
+            success: success ? 1 : 0,
+          }),
+        });
+      } else {
+        await fetch("http://localhost:8000/api/test-combinations/result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...currentTest,
+            success: success ? 1 : 0,
+          }),
+        });
+      }
 
-      // Then fetch next combination
       fetchNextCombination();
 
-      // Clear feedback after 500ms
       setTimeout(() => {
         setFeedback(null);
       }, 500);
@@ -84,10 +99,9 @@ function PlayTest() {
 
   useEffect(() => {
     fetchNextCombination();
-  }, [testId]);
+  }, [testId, runId]);
 
   const handleKeyPress = (event) => {
-    // Prevent default scrolling behavior for arrow keys
     if (
       ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
     ) {
@@ -111,10 +125,9 @@ function PlayTest() {
         success = orientation === "W";
         break;
       default:
-        return; // ignore other keys
+        return;
     }
 
-    // Only submit if an arrow key was pressed
     if (
       ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)
     ) {
@@ -129,6 +142,9 @@ function PlayTest() {
 
   return (
     <>
+      {currentPhase === "pretest" && (
+        <div className="pretest-banner">PRETEST</div>
+      )}
       <div className="play-page">
         <div className="play-info">
           <span className="sample-count">#{totalSamples}</span>
@@ -165,7 +181,7 @@ function PlayTest() {
               bottom: 0,
               left: 0,
               width: "100%",
-              height: "20px", // Made taller
+              height: "20px",
               backgroundColor: feedback.correct ? "#4CAF50" : "#F44336",
               transition: "all 0.3s ease",
             }}

@@ -21,6 +21,9 @@ function Navbar({ onCreateClick }) {
             <Link to="/custom-test" className="btn btn-ghost">
               Custom Test
             </Link>
+            <Link to="/settings" className="btn btn-ghost">
+              Settings
+            </Link>
             <button
               className="btn btn-icon"
               onClick={toggleTheme}

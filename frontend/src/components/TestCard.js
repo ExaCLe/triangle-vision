@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-function TestCard({ test, onEdit, onDelete }) {
+function TestCard({ test, onEdit, onDelete, onPlay }) {
   const {
     id,
     title,
@@ -34,10 +34,13 @@ function TestCard({ test, onEdit, onDelete }) {
         </div>
       </div>
       <div className="card-footer">
-        <Link to={`/play-test/${id}`} className="btn btn-primary flex-1">
+        <button
+          className="btn btn-primary flex-1"
+          onClick={() => onPlay(test)}
+        >
           <span className="icon play-icon">▶</span>
           Play Test
-        </Link>
+        </button>
         <Link
           to={`/test-visualization/${id}`}
           className="btn btn-outline btn-icon"

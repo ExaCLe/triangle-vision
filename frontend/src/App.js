@@ -5,6 +5,8 @@ import TestFormModal from "./components/TestFormModal";
 import CustomTest from "./components/CustomTest";
 import PlayTest from "./components/PlayTest";
 import TestVisualization from "./components/TestVisualization";
+import StartRunModal from "./components/StartRunModal";
+import SettingsPage from "./components/SettingsPage";
 import "./css/App.css";
 import Navbar from "./components/Navbar";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -16,6 +18,8 @@ function App() {
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [selectedTest, setSelectedTest] = useState(null);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const [runModalTest, setRunModalTest] = useState(null);
 
   const refetchTests = async () => {
     setLoading(true);
@@ -94,6 +98,11 @@ function App() {
     setIsTestModalOpen(true);
   };
 
+  const handlePlayTest = (test) => {
+    setRunModalTest(test);
+    setIsRunModalOpen(true);
+  };
+
   return (
     <ThemeProvider>
       <Router>
@@ -124,6 +133,7 @@ function App() {
                           test={test}
                           onEdit={handleEditTest}
                           onDelete={handleDeleteTest}
+                          onPlay={handlePlayTest}
                         />
                       ))
                     )}
@@ -133,6 +143,8 @@ function App() {
             />
             <Route path="/custom-test" element={<CustomTest />} />
             <Route path="/play-test/:testId" element={<PlayTest />} />
+            <Route path="/play-test/:testId/run/:runId" element={<PlayTest />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route
               path="/test-visualization/:testId"
               element={<TestVisualization />}
@@ -147,6 +159,14 @@ function App() {
             onSubmit={(data) => handleTestSubmit(data, selectedTest?.id)}
             mode={modalMode}
             defaultValues={selectedTest}
+          />
+          <StartRunModal
+            isOpen={isRunModalOpen}
+            onClose={() => {
+              setIsRunModalOpen(false);
+              setRunModalTest(null);
+            }}
+            test={runModalTest}
           />
         </div>
       </Router>

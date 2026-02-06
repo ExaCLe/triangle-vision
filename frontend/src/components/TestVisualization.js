@@ -11,8 +11,11 @@ function TestVisualization() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRectangles, setShowRectangles] = useState(false);
-  const [stepValue, setStepValue] = useState("10"); // new state for step size
-  const [thresholdValue, setThresholdValue] = useState("0.75"); // new state for threshold line
+  const [stepValue, setStepValue] = useState("10");
+  const [thresholdValue, setThresholdValue] = useState("0.75");
+  const [runs, setRuns] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState(null);
+  const [runSummary, setRunSummary] = useState(null);
 
   const fetchPlotData = async (showRects) => {
     try {
@@ -41,9 +44,46 @@ function TestVisualization() {
     }
   };
 
+  const fetchRuns = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/runs/test/${testId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setRuns(data);
+      }
+    } catch {
+      // Runs endpoint may not exist yet; ignore
+    }
+  };
+
+  const fetchRunSummary = async (runId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/runs/${runId}/summary`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setRunSummary(data);
+      }
+    } catch {
+      setRunSummary(null);
+    }
+  };
+
   useEffect(() => {
     fetchPlotData(showRectangles);
+    fetchRuns();
   }, [testId, showRectangles, stepValue, thresholdValue]);
+
+  useEffect(() => {
+    if (selectedRunId) {
+      fetchRunSummary(selectedRunId);
+    } else {
+      setRunSummary(null);
+    }
+  }, [selectedRunId]);
 
   const handleDownloadPlot = () => {
     if (!plotImage) return;
@@ -71,9 +111,7 @@ function TestVisualization() {
         `http://localhost:8000/api/test-combinations/${testId}/export-csv`
       );
       if (!response.ok) throw new Error("Failed to download CSV");
-      // Convert the response to text instead of blob to modify the separator
       const text = await response.text();
-      // Replace commas with semicolons
       const modifiedText = text.replace(/,/g, ";");
       const blob = new Blob([modifiedText], {
         type: "text/csv;charset=utf-8;",
@@ -94,7 +132,6 @@ function TestVisualization() {
   const handleDownloadCombinationsCSV = () => {
     if (!plotData.length) return;
 
-    // Create CSV content with semicolons
     const csvContent = [
       "Triangle Size;Saturation",
       ...plotData.map(
@@ -102,7 +139,6 @@ function TestVisualization() {
       ),
     ].join("\n");
 
-    // Create and trigger download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -198,6 +234,76 @@ function TestVisualization() {
                 </div>
               )}
             </div>
+
+            {runs.length > 0 && (
+              <div className="runs-section">
+                <h3 className="table-title">Runs</h3>
+                <div className="runs-list">
+                  {runs.map((run) => (
+                    <div
+                      key={run.id}
+                      className={`run-item ${selectedRunId === run.id ? "selected" : ""}`}
+                      onClick={() =>
+                        setSelectedRunId(
+                          selectedRunId === run.id ? null : run.id
+                        )
+                      }
+                    >
+                      <span className="run-id">Run #{run.id}</span>
+                      <span className={`run-status status-${run.status}`}>
+                        {run.status}
+                      </span>
+                      <span className="run-mode">{run.pretest_mode}</span>
+                    </div>
+                  ))}
+                </div>
+                {runSummary && (
+                  <div className="run-summary">
+                    <h4>Run #{runSummary.id} Summary</h4>
+                    <div className="summary-details">
+                      <div>
+                        <strong>Pretest trials:</strong>{" "}
+                        {runSummary.pretest_trial_count}
+                      </div>
+                      <div>
+                        <strong>Main trials:</strong>{" "}
+                        {runSummary.main_trials_count}
+                      </div>
+                      <div>
+                        <strong>Total trials:</strong>{" "}
+                        {runSummary.total_trials_count}
+                      </div>
+                      {runSummary.pretest_bounds && (
+                        <div className="pretest-bounds-info">
+                          <strong>Pretest bounds:</strong>
+                          <div>
+                            Size: {runSummary.pretest_bounds.size_min?.toFixed(1)}{" "}
+                            - {runSummary.pretest_bounds.size_max?.toFixed(1)}
+                          </div>
+                          <div>
+                            Saturation:{" "}
+                            {runSummary.pretest_bounds.saturation_min?.toFixed(3)}{" "}
+                            -{" "}
+                            {runSummary.pretest_bounds.saturation_max?.toFixed(3)}
+                          </div>
+                        </div>
+                      )}
+                      {runSummary.pretest_warnings &&
+                        runSummary.pretest_warnings.length > 0 && (
+                          <div className="pretest-warnings">
+                            <strong>Warnings:</strong>
+                            <ul>
+                              {runSummary.pretest_warnings.map((w, i) => (
+                                <li key={i}>{w}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="combinations-section">
               {plotData.length > 0 ? (

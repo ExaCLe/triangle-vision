@@ -3,13 +3,28 @@ import sys
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlalchemy import inspect, text
 from db.database import engine
 from models.test import Base
+from models.settings import Setting  # Ensure settings table is created
 from routers import test_router, test_combination_router
+from routers import settings_router, run_router
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize the database
 Base.metadata.create_all(bind=engine)
+
+# Migration: add new columns to existing tables if missing
+inspector = inspect(engine)
+if "test_combinations" in inspector.get_table_names():
+    existing_columns = {col["name"] for col in inspector.get_columns("test_combinations")}
+    with engine.connect() as conn:
+        if "run_id" not in existing_columns:
+            conn.execute(text("ALTER TABLE test_combinations ADD COLUMN run_id INTEGER REFERENCES runs(id)"))
+            conn.commit()
+        if "phase" not in existing_columns:
+            conn.execute(text("ALTER TABLE test_combinations ADD COLUMN phase VARCHAR DEFAULT 'main'"))
+            conn.commit()
 
 app = FastAPI()
 
@@ -27,6 +42,8 @@ app.add_middleware(
 # First, mount the API routes with a prefix
 app.include_router(test_router.router, prefix="/api")
 app.include_router(test_combination_router.router, prefix="/api")
+app.include_router(settings_router.router, prefix="/api")
+app.include_router(run_router.router, prefix="/api")
 
 # Determine the absolute path to the frontend build
 if getattr(sys, "frozen", False):
