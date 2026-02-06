@@ -28,6 +28,13 @@ function PlayTest() {
   const [didInitialFetch, setDidInitialFetch] = useState(false);
   const waitTimeoutRef = useRef(null);
 
+  // Simulation mode state
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
+  const [simulationModels, setSimulationModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState("default");
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationLog, setSimulationLog] = useState(null);
+
   const waitFor = useCallback((durationMs) =>
     new Promise((resolve) => {
       const ms = Math.max(0, Number(durationMs) || 0);
@@ -274,6 +281,7 @@ function PlayTest() {
         const enabled = normalized.debug.enabled;
         setDebugEnabled(enabled);
         setDisplaySettings(normalized.display);
+        setSimulationEnabled(normalized.simulation?.enabled ?? false);
         if (!enabled) {
           setDebugVisible(false);
         }
@@ -282,7 +290,24 @@ function PlayTest() {
       }
     };
 
+    const fetchModels = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/settings/simulation-models"
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        setSimulationModels(data);
+        if (data.length > 0 && !data.find((m) => m.name === selectedModel)) {
+          setSelectedModel(data[0].name);
+        }
+      } catch (error) {
+        console.error("Error fetching simulation models:", error);
+      }
+    };
+
     fetchSettings();
+    fetchModels();
   }, []);
 
   useEffect(() => {
@@ -327,6 +352,66 @@ function PlayTest() {
       }
     };
   }, []);
+
+  // ---- Simulation helpers ------------------------------------------------
+  const runSimulation = useCallback(async (count) => {
+    if (!runId || isSimulating) return;
+    setIsSimulating(true);
+    setSimulationLog(null);
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/runs/${runId}/simulate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model_name: selectedModel, count }),
+        }
+      );
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("Simulation failed:", err);
+        setSimulationLog(`Error: ${err}`);
+        return;
+      }
+      const data = await response.json();
+      const correct = data.trials.filter((t) => t.success === 1).length;
+      setSimulationLog(
+        `Simulated ${data.total_simulated} trial(s): ${correct} correct, ${data.total_simulated - correct} incorrect`
+      );
+      setTotalSamples(data.total_samples ?? 0);
+      // Refresh display
+      const nextData = await fetchNextCombination(true);
+      if (!nextData) {
+        setCurrentTest(null);
+      }
+      if (debugVisible) {
+        await fetchDebugInfo();
+      }
+    } catch (error) {
+      console.error("Simulation error:", error);
+      setSimulationLog("Simulation request failed");
+    } finally {
+      setIsSimulating(false);
+    }
+  }, [runId, isSimulating, selectedModel, fetchNextCombination, debugVisible, fetchDebugInfo]);
+
+  useEffect(() => {
+    if (!simulationEnabled || !runId) return;
+    const handleSimKey = (event) => {
+      if (isSimulating) return;
+      let count = 0;
+      if (event.key === "1") count = 1;
+      else if (event.key === "5") count = 5;
+      else if (event.key === "0" && !event.shiftKey) count = 10;
+      else if (event.key === ")" || (event.key === "0" && event.shiftKey)) count = 50;
+      if (count > 0) {
+        event.preventDefault();
+        runSimulation(count);
+      }
+    };
+    window.addEventListener("keydown", handleSimKey);
+    return () => window.removeEventListener("keydown", handleSimKey);
+  }, [simulationEnabled, runId, isSimulating, runSimulation]);
 
   const runCounts = debugData?.counts?.run || null;
   const testCounts = debugData?.counts?.test || null;
@@ -764,6 +849,58 @@ function PlayTest() {
           />
         )}
       </div>
+
+      {simulationEnabled && runId && (
+        <div className="simulation-bar">
+          <div className="simulation-bar-inner">
+            <span className="simulation-bar-label">Simulation</span>
+            <select
+              className="simulation-model-select"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={isSimulating}
+            >
+              {simulationModels.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="simulation-btn"
+              disabled={isSimulating}
+              onClick={() => runSimulation(1)}
+            >
+              ×1 <kbd>1</kbd>
+            </button>
+            <button
+              className="simulation-btn"
+              disabled={isSimulating}
+              onClick={() => runSimulation(5)}
+            >
+              ×5 <kbd>5</kbd>
+            </button>
+            <button
+              className="simulation-btn"
+              disabled={isSimulating}
+              onClick={() => runSimulation(10)}
+            >
+              ×10 <kbd>0</kbd>
+            </button>
+            <button
+              className="simulation-btn"
+              disabled={isSimulating}
+              onClick={() => runSimulation(50)}
+            >
+              ×50 <kbd>⇧0</kbd>
+            </button>
+            {isSimulating && <span className="simulation-spinner">Running…</span>}
+            {simulationLog && !isSimulating && (
+              <span className="simulation-log">{simulationLog}</span>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
