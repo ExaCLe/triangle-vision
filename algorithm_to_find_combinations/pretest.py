@@ -54,7 +54,7 @@ class PretestState:
     # Current axis: "size" then "saturation"
     current_axis: str = "size"
 
-    # Search phase: "find_anchor" -> "refine_lower" -> "refine_upper" -> axis switch or "done"
+    # Search phase: "initial_descent" -> "find_anchor" -> "refine_lower" -> "refine_upper" -> axis switch or "done"
     search_phase: str = "find_anchor"
 
     # Current probe state
@@ -77,6 +77,7 @@ class PretestState:
     # Search bounds for find_anchor bisection
     search_lo: float = 0.0
     search_hi: float = 0.0
+    descent_last_correct_value: Optional[float] = None
 
     # Results
     size_lower: Optional[float] = None
@@ -113,7 +114,8 @@ def create_pretest_state(settings) -> PretestState:
     # First probe at midpoint
     state.current_probe_value = (state.search_lo + state.search_hi) / 2.0
     state.current_axis = "size"
-    state.search_phase = "find_anchor"
+    # First do a size-only halving descent from midpoint to locate a starting bracket.
+    state.search_phase = "initial_descent"
     return state
 
 
@@ -139,6 +141,10 @@ def get_pretest_trial(state: PretestState) -> dict:
 
 def process_pretest_result(state: PretestState, success: bool) -> PretestState:
     """Process a trial result and advance the state machine if probe is complete."""
+    if state.search_phase == "initial_descent":
+        _handle_initial_descent(state, success)
+        return state
+
     if success:
         state.current_probe_correct += 1
     state.current_probe_trials += 1
@@ -176,6 +182,47 @@ def _advance_search(state: PretestState, p_hat: float):
         _handle_refine_lower(state, p_hat)
     elif state.search_phase == "refine_upper":
         _handle_refine_upper(state, p_hat)
+
+
+def _handle_initial_descent(state: PretestState, success: bool):
+    """Halve size until the first wrong answer, then backtrack one step and start midpoint search."""
+    if state.current_axis != "size":
+        state.search_phase = "find_anchor"
+        return
+
+    if success:
+        state.descent_last_correct_value = state.current_probe_value
+        next_value = state.current_probe_value / 2.0
+        if next_value <= state.global_size_min:
+            # Reached minimum without a wrong answer: continue with midpoint search on [min, last_correct].
+            state.search_lo = state.global_size_min
+            state.search_hi = max(
+                state.global_size_min,
+                state.descent_last_correct_value or state.current_probe_value,
+            )
+            state.current_probe_value = (state.search_lo + state.search_hi) / 2.0
+            state.search_phase = "find_anchor"
+            state.descent_last_correct_value = None
+            return
+        state.current_probe_value = next_value
+        return
+
+    wrong_value = state.current_probe_value
+    backtrack_value = (
+        state.descent_last_correct_value
+        if state.descent_last_correct_value is not None
+        else min(state.global_size_max, wrong_value * 2.0)
+    )
+
+    state.search_lo = max(state.global_size_min, wrong_value)
+    state.search_hi = min(state.global_size_max, backtrack_value)
+    if state.search_lo >= state.search_hi:
+        state.search_lo = state.global_size_min
+        state.search_hi = state.global_size_max
+
+    state.current_probe_value = (state.search_lo + state.search_hi) / 2.0
+    state.search_phase = "find_anchor"
+    state.descent_last_correct_value = None
 
 
 def _handle_find_anchor(state: PretestState, p_hat: float):
@@ -237,10 +284,7 @@ def _handle_refine_lower(state: PretestState, p_hat: float):
             state.saturation_lower = lower_bound
 
         # Switch to refine_upper
-        if state.current_axis == "size":
-            easy_end = state.global_size_max
-        else:
-            easy_end = state.global_sat_max
+        easy_end = _compute_easy_end(state)
 
         state.search_phase = "refine_upper"
         state.bracket_lo = state.anchor_value
@@ -282,6 +326,24 @@ def _handle_refine_upper(state: PretestState, p_hat: float):
             state.is_complete = True
     else:
         state.current_probe_value = (state.bracket_lo + state.bracket_hi) / 2.0
+
+
+def _compute_easy_end(state: PretestState) -> float:
+    if state.current_axis != "size":
+        return state.global_sat_max
+
+    global_max = state.global_size_max
+
+    anchor_value = state.anchor_value if state.anchor_value is not None else 0.0
+
+    upper_base = anchor_value
+    if state.search_hi and state.search_hi < global_max:
+        upper_base = max(state.search_hi, anchor_value)
+
+    candidate = upper_base * 2.0
+    if candidate <= 0:
+        return global_max
+    return min(global_max, candidate)
 
 
 def _clamp_and_warn(state: PretestState, reason: str):

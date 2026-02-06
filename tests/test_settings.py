@@ -14,6 +14,11 @@ def test_get_pretest_settings_returns_defaults(client: TestClient):
     assert data["probe_rule"]["trial_cap"] == 30
     assert data["search"]["max_probes_per_axis"] == 12
     assert data["search"]["refine_steps_per_edge"] == 2
+    assert data["display"]["masking"]["duration_ms"] == 0
+    assert data["display"]["eink"]["enabled"] is False
+    assert data["display"]["eink"]["flash_color"] == "white"
+    assert data["display"]["flip"]["horizontal"] is False
+    assert data["display"]["flip"]["vertical"] is False
 
 
 def test_put_and_get_roundtrip(client: TestClient):
@@ -29,6 +34,15 @@ def test_put_and_get_roundtrip(client: TestClient):
             "min_saturation": 0.1,
             "max_saturation": 0.9,
         },
+        "display": {
+            "masking": {"duration_ms": 250},
+            "eink": {
+                "enabled": True,
+                "flash_color": "black",
+                "flash_duration_ms": 120,
+            },
+            "flip": {"horizontal": True, "vertical": False},
+        },
     }
     put_response = client.put("/api/settings/pretest", json=updated)
     assert put_response.status_code == 200
@@ -41,3 +55,8 @@ def test_put_and_get_roundtrip(client: TestClient):
     assert data["probe_rule"]["success_target"] == 8
     assert data["search"]["refine_steps_per_edge"] == 3
     assert data["global_limits"]["min_triangle_size"] == 20.0
+    assert data["display"]["masking"]["duration_ms"] == 250
+    assert data["display"]["eink"]["enabled"] is True
+    assert data["display"]["eink"]["flash_color"] == "black"
+    assert data["display"]["eink"]["flash_duration_ms"] == 120
+    assert data["display"]["flip"]["horizontal"] is True

@@ -1,4 +1,9 @@
-from pydantic import BaseModel
+from typing import Literal
+from pydantic import BaseModel, Field
+
+
+class DebugSettings(BaseModel):
+    enabled: bool = True
 
 
 class PretestProbeRule(BaseModel):
@@ -18,9 +23,32 @@ class PretestGlobalLimits(BaseModel):
     max_saturation: float = 1.0
 
 
+class DisplayMaskingSettings(BaseModel):
+    duration_ms: int = 0
+
+
+class DisplayEInkSettings(BaseModel):
+    enabled: bool = False
+    flash_color: Literal["white", "black"] = "white"
+    flash_duration_ms: int = 100
+
+
+class DisplayFlipSettings(BaseModel):
+    horizontal: bool = False
+    vertical: bool = False
+
+
+class DisplaySettings(BaseModel):
+    masking: DisplayMaskingSettings = Field(default_factory=DisplayMaskingSettings)
+    eink: DisplayEInkSettings = Field(default_factory=DisplayEInkSettings)
+    flip: DisplayFlipSettings = Field(default_factory=DisplayFlipSettings)
+
+
 class PretestSettings(BaseModel):
     lower_target: float = 0.40
     upper_target: float = 0.95
-    probe_rule: PretestProbeRule = PretestProbeRule()
-    search: PretestSearch = PretestSearch()
-    global_limits: PretestGlobalLimits = PretestGlobalLimits()
+    probe_rule: PretestProbeRule = Field(default_factory=PretestProbeRule)
+    search: PretestSearch = Field(default_factory=PretestSearch)
+    global_limits: PretestGlobalLimits = Field(default_factory=PretestGlobalLimits)
+    debug: DebugSettings = Field(default_factory=DebugSettings)
+    display: DisplaySettings = Field(default_factory=DisplaySettings)

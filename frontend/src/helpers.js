@@ -16,3 +16,37 @@ export const invertColor = (hex) => {
   }
   return hex;
 };
+
+export const orientationFromArrowKey = (key) => {
+  switch (key) {
+    case "ArrowUp":
+      return "N";
+    case "ArrowRight":
+      return "E";
+    case "ArrowDown":
+      return "S";
+    case "ArrowLeft":
+      return "W";
+    default:
+      return null;
+  }
+};
+
+export const applyOrientationFlip = (orientation, flip = {}) => {
+  if (!orientation) return orientation;
+  const { horizontal = false, vertical = false } = flip;
+
+  let mapped = orientation;
+
+  if (horizontal) {
+    if (mapped === "E") mapped = "W";
+    else if (mapped === "W") mapped = "E";
+  }
+
+  if (vertical) {
+    if (mapped === "N") mapped = "S";
+    else if (mapped === "S") mapped = "N";
+  }
+
+  return mapped;
+};

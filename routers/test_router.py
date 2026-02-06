@@ -1,12 +1,14 @@
 import matplotlib
+from datetime import datetime
 
 matplotlib.use("Agg")  # Set the backend to non-interactive Agg
 import matplotlib.pyplot as plt
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from db.database import get_db
-from models.test import Test, Rectangle
+from models.test import Test, Rectangle, TestCombination
 from schemas.test import TestCreate, TestUpdate, TestResponse
 import crud.test as crud
 from crud.settings import get_pretest_settings
@@ -16,11 +18,100 @@ from algorithm_to_find_combinations.plotting import (
     compute_soft_brush_smooth,
 )
 from fastapi.responses import StreamingResponse
-from algorithm_to_find_combinations.algorithm import AlgorithmState, update_state
+from algorithm_to_find_combinations.algorithm import AlgorithmState, update_state, selection_probability
 import base64
 import numpy as np
 
 router = APIRouter(prefix="/tests", tags=["tests"])
+
+
+def _combination_counts_for_test(db: Session, test_id: int):
+    query = db.query(TestCombination).filter(TestCombination.test_id == test_id)
+    total = query.count()
+    pretest = query.filter(TestCombination.phase == "pretest").count()
+    main = query.filter(TestCombination.phase == "main").count()
+    correct = query.filter(TestCombination.success == 1).count()
+    incorrect = query.filter(TestCombination.success == 0).count()
+    success_rate = (correct / total) if total else None
+    return {
+        "total": total,
+        "pretest": pretest,
+        "main": main,
+        "correct": correct,
+        "incorrect": incorrect,
+        "success_rate": success_rate,
+    }
+
+
+def _rectangle_debug_for_test(db: Session, test_id: int):
+    rect_query = db.query(Rectangle).filter(Rectangle.test_id == test_id)
+    rect_count = rect_query.count()
+
+    stats = (
+        rect_query.with_entities(
+            func.sum(Rectangle.true_samples),
+            func.sum(Rectangle.false_samples),
+            func.min(Rectangle.area),
+            func.max(Rectangle.area),
+            func.min(Rectangle.min_triangle_size),
+            func.max(Rectangle.max_triangle_size),
+            func.min(Rectangle.min_saturation),
+            func.max(Rectangle.max_saturation),
+        )
+        .first()
+    )
+
+    if stats:
+        (
+            sum_true,
+            sum_false,
+            min_area,
+            max_area,
+            min_ts,
+            max_ts,
+            min_sat,
+            max_sat,
+        ) = stats
+    else:
+        sum_true = sum_false = min_area = max_area = None
+        min_ts = max_ts = min_sat = max_sat = None
+
+    rectangles = rect_query.order_by(Rectangle.area.desc()).all()
+    items = []
+    for rect in rectangles:
+        weight = selection_probability(
+            {
+                "area": rect.area,
+                "true_samples": rect.true_samples,
+                "false_samples": rect.false_samples,
+            }
+        )
+        items.append(
+            {
+                "id": rect.id,
+                "bounds": {
+                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
+                    "saturation": (rect.min_saturation, rect.max_saturation),
+                },
+                "area": rect.area,
+                "true_samples": rect.true_samples,
+                "false_samples": rect.false_samples,
+                "selection_weight": weight,
+            }
+        )
+
+    return {
+        "count": rect_count,
+        "total_true": sum_true or 0,
+        "total_false": sum_false or 0,
+        "min_area": min_area,
+        "max_area": max_area,
+        "bounds": {
+            "triangle_size": (min_ts, max_ts) if min_ts is not None else None,
+            "saturation": (min_sat, max_sat) if min_sat is not None else None,
+        },
+        "items": items,
+    }
 
 
 def _test_has_bounds(test: Test) -> bool:
@@ -259,3 +350,80 @@ def get_test_plot(
     except Exception as e:
         plt.close("all")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/debug")
+def get_test_debug(test_id: int, db: Session = Depends(get_db)):
+    db_test = crud.get_test(db=db, test_id=test_id)
+    if db_test is None:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    settings = get_pretest_settings(db)
+    global_limits = settings.global_limits
+
+    test_bounds = None
+    if _test_has_bounds(db_test):
+        test_bounds = {
+            "size_min": db_test.min_triangle_size,
+            "size_max": db_test.max_triangle_size,
+            "saturation_min": db_test.min_saturation,
+            "saturation_max": db_test.max_saturation,
+        }
+
+    size_bounds, sat_bounds = _resolve_test_bounds(db_test, db)
+    active_bounds = {
+        "size_min": size_bounds[0],
+        "size_max": size_bounds[1],
+        "saturation_min": sat_bounds[0],
+        "saturation_max": sat_bounds[1],
+    }
+    active_source = "test" if test_bounds else "global"
+
+    last_result = (
+        db.query(TestCombination)
+        .filter(TestCombination.test_id == test_id)
+        .order_by(TestCombination.created_at.desc())
+        .first()
+    )
+
+    return {
+        "source": "test",
+        "timestamp": datetime.utcnow().isoformat(),
+        "phase": "main",
+        "test": {
+            "id": db_test.id,
+            "title": db_test.title,
+            "description": db_test.description,
+        },
+        "counts": {
+            "test": _combination_counts_for_test(db, test_id),
+        },
+        "bounds": {
+            "active": active_bounds,
+            "active_source": active_source,
+            "test": test_bounds,
+            "global": {
+                "size_min": global_limits.min_triangle_size,
+                "size_max": global_limits.max_triangle_size,
+                "saturation_min": global_limits.min_saturation,
+                "saturation_max": global_limits.max_saturation,
+            },
+        },
+        "settings": {
+            "lower_target": settings.lower_target,
+            "upper_target": settings.upper_target,
+            "probe_rule": settings.probe_rule.model_dump(),
+            "search": settings.search.model_dump(),
+        },
+        "rectangles": _rectangle_debug_for_test(db, test_id),
+        "last_result": {
+            "triangle_size": last_result.triangle_size,
+            "saturation": last_result.saturation,
+            "orientation": last_result.orientation,
+            "success": last_result.success,
+            "phase": last_result.phase,
+            "created_at": last_result.created_at.isoformat(),
+        }
+        if last_result
+        else None,
+    }

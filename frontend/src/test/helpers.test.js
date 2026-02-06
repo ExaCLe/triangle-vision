@@ -1,4 +1,8 @@
-import { invertColor } from "../helpers";
+import {
+  invertColor,
+  orientationFromArrowKey,
+  applyOrientationFlip,
+} from "../helpers";
 
 describe("test inversion of color", () => {
   test("inverts the color", () => {
@@ -22,5 +26,28 @@ describe("test inversion of color", () => {
     expect(invertColor("abc")).toBe("abc");
     expect(invertColor("#abcde")).toBe("#abcde");
     expect(invertColor("#ab")).toBe("#ab");
+  });
+});
+
+describe("orientation helpers", () => {
+  test("maps arrow keys to orientations", () => {
+    expect(orientationFromArrowKey("ArrowUp")).toBe("N");
+    expect(orientationFromArrowKey("ArrowRight")).toBe("E");
+    expect(orientationFromArrowKey("ArrowDown")).toBe("S");
+    expect(orientationFromArrowKey("ArrowLeft")).toBe("W");
+    expect(orientationFromArrowKey("Enter")).toBeNull();
+  });
+
+  test("applies horizontal and vertical flips", () => {
+    expect(applyOrientationFlip("E", { horizontal: true })).toBe("W");
+    expect(applyOrientationFlip("W", { horizontal: true })).toBe("E");
+    expect(applyOrientationFlip("N", { vertical: true })).toBe("S");
+    expect(applyOrientationFlip("S", { vertical: true })).toBe("N");
+    expect(
+      applyOrientationFlip("E", { horizontal: true, vertical: true })
+    ).toBe("W");
+    expect(
+      applyOrientationFlip("N", { horizontal: true, vertical: true })
+    ).toBe("S");
   });
 });

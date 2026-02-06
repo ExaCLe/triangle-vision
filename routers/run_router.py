@@ -1,8 +1,10 @@
 import json
+from datetime import datetime
 import random
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Literal, Optional
 from db.database import get_db
 from models.test import Run, TestCombination, Test, Rectangle
@@ -19,6 +21,7 @@ from algorithm_to_find_combinations.algorithm import (
     AlgorithmState,
     get_next_combination,
     update_state,
+    selection_probability,
 )
 from crud.algorithm_state import sync_algorithm_state
 
@@ -104,6 +107,100 @@ def _load_pretest_state(run: Run):
         return None
     data = json.loads(run.pretest_state_json)
     return deserialize_pretest_state(data)
+
+
+def _combination_counts(db: Session, *, test_id: int = None, run_id: int = None):
+    query = db.query(TestCombination)
+    if test_id is not None:
+        query = query.filter(TestCombination.test_id == test_id)
+    if run_id is not None:
+        query = query.filter(TestCombination.run_id == run_id)
+
+    total = query.count()
+    pretest = query.filter(TestCombination.phase == "pretest").count()
+    main = query.filter(TestCombination.phase == "main").count()
+    correct = query.filter(TestCombination.success == 1).count()
+    incorrect = query.filter(TestCombination.success == 0).count()
+    success_rate = (correct / total) if total else None
+    return {
+        "total": total,
+        "pretest": pretest,
+        "main": main,
+        "correct": correct,
+        "incorrect": incorrect,
+        "success_rate": success_rate,
+    }
+
+
+def _rectangle_debug(db: Session, test_id: int):
+    rect_query = db.query(Rectangle).filter(Rectangle.test_id == test_id)
+    rect_count = rect_query.count()
+
+    stats = (
+        rect_query.with_entities(
+            func.sum(Rectangle.true_samples),
+            func.sum(Rectangle.false_samples),
+            func.min(Rectangle.area),
+            func.max(Rectangle.area),
+            func.min(Rectangle.min_triangle_size),
+            func.max(Rectangle.max_triangle_size),
+            func.min(Rectangle.min_saturation),
+            func.max(Rectangle.max_saturation),
+        )
+        .first()
+    )
+
+    if stats:
+        (
+            sum_true,
+            sum_false,
+            min_area,
+            max_area,
+            min_ts,
+            max_ts,
+            min_sat,
+            max_sat,
+        ) = stats
+    else:
+        sum_true = sum_false = min_area = max_area = None
+        min_ts = max_ts = min_sat = max_sat = None
+
+    rectangles = rect_query.order_by(Rectangle.area.desc()).all()
+    items = []
+    for rect in rectangles:
+        weight = selection_probability(
+            {
+                "area": rect.area,
+                "true_samples": rect.true_samples,
+                "false_samples": rect.false_samples,
+            }
+        )
+        items.append(
+            {
+                "id": rect.id,
+                "bounds": {
+                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
+                    "saturation": (rect.min_saturation, rect.max_saturation),
+                },
+                "area": rect.area,
+                "true_samples": rect.true_samples,
+                "false_samples": rect.false_samples,
+                "selection_weight": weight,
+            }
+        )
+
+    return {
+        "count": rect_count,
+        "total_true": sum_true or 0,
+        "total_false": sum_false or 0,
+        "min_area": min_area,
+        "max_area": max_area,
+        "bounds": {
+            "triangle_size": (min_ts, max_ts) if min_ts is not None else None,
+            "saturation": (min_sat, max_sat) if min_sat is not None else None,
+        },
+        "items": items,
+    }
 
 
 @router.post("/", response_model=RunResponse)
@@ -509,6 +606,133 @@ def get_run_summary(run_id: int, db: Session = Depends(get_db)):
         main_trials_count=main_count,
         total_trials_count=pretest_count + main_count,
     )
+
+
+@router.get("/{run_id}/debug")
+def get_run_debug(run_id: int, db: Session = Depends(get_db)):
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    test = db.query(Test).filter(Test.id == run.test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    settings = get_pretest_settings(db)
+    global_limits = settings.global_limits
+
+    run_bounds = None
+    if run.pretest_size_min is not None:
+        run_bounds = {
+            "size_min": run.pretest_size_min,
+            "size_max": run.pretest_size_max,
+            "saturation_min": run.pretest_saturation_min,
+            "saturation_max": run.pretest_saturation_max,
+        }
+
+    test_bounds = None
+    if _test_bounds_complete(test):
+        test_bounds = {
+            "size_min": test.min_triangle_size,
+            "size_max": test.max_triangle_size,
+            "saturation_min": test.min_saturation,
+            "saturation_max": test.max_saturation,
+        }
+
+    if run.status == "pretest":
+        active_bounds = {
+            "size_min": global_limits.min_triangle_size,
+            "size_max": global_limits.max_triangle_size,
+            "saturation_min": global_limits.min_saturation,
+            "saturation_max": global_limits.max_saturation,
+        }
+        active_source = "global"
+    else:
+        size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
+        active_bounds = {
+            "size_min": size_bounds[0],
+            "size_max": size_bounds[1],
+            "saturation_min": sat_bounds[0],
+            "saturation_max": sat_bounds[1],
+        }
+        if run_bounds:
+            active_source = "run"
+        elif test_bounds:
+            active_source = "test"
+        else:
+            active_source = "global"
+
+    pretest_state = None
+    if run.pretest_state_json:
+        pretest_state_obj = _load_pretest_state(run)
+        if pretest_state_obj is not None:
+            pretest_state = serialize_pretest_state(pretest_state_obj)
+
+    last_result = (
+        db.query(TestCombination)
+        .filter(TestCombination.run_id == run_id)
+        .order_by(TestCombination.created_at.desc())
+        .first()
+    )
+
+    warnings = []
+    if run.pretest_warnings:
+        try:
+            warnings = json.loads(run.pretest_warnings)
+        except (json.JSONDecodeError, TypeError):
+            warnings = []
+
+    return {
+        "source": "run",
+        "timestamp": datetime.utcnow().isoformat(),
+        "phase": run.status,
+        "run": {
+            "id": run.id,
+            "status": run.status,
+            "pretest_mode": run.pretest_mode,
+            "pretest_bounds": run_bounds,
+            "pretest_warnings": warnings,
+        },
+        "test": {
+            "id": test.id,
+            "title": test.title,
+            "description": test.description,
+        },
+        "counts": {
+            "run": _combination_counts(db, run_id=run_id),
+            "test": _combination_counts(db, test_id=test.id),
+        },
+        "bounds": {
+            "active": active_bounds,
+            "active_source": active_source,
+            "run": run_bounds,
+            "test": test_bounds,
+            "global": {
+                "size_min": global_limits.min_triangle_size,
+                "size_max": global_limits.max_triangle_size,
+                "saturation_min": global_limits.min_saturation,
+                "saturation_max": global_limits.max_saturation,
+            },
+        },
+        "settings": {
+            "lower_target": settings.lower_target,
+            "upper_target": settings.upper_target,
+            "probe_rule": settings.probe_rule.model_dump(),
+            "search": settings.search.model_dump(),
+        },
+        "rectangles": _rectangle_debug(db, test.id),
+        "pretest_state": pretest_state,
+        "last_result": {
+            "triangle_size": last_result.triangle_size,
+            "saturation": last_result.saturation,
+            "orientation": last_result.orientation,
+            "success": last_result.success,
+            "phase": last_result.phase,
+            "created_at": last_result.created_at.isoformat(),
+        }
+        if last_result
+        else None,
+    }
 
 
 @router.get("/test/{test_id}", response_model=List[RunResponse])

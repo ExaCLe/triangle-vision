@@ -11,9 +11,11 @@ from algorithm_to_find_combinations.pretest import (
 from schemas.settings import PretestSettings
 
 
-def make_default_state(**overrides):
+def make_default_state(start_with_descent=False, **overrides):
     settings = PretestSettings()
     state = create_pretest_state(settings)
+    if not start_with_descent:
+        state.search_phase = "find_anchor"
     for k, v in overrides.items():
         setattr(state, k, v)
     return state
@@ -55,6 +57,57 @@ class TestProbeScoring:
             state = process_pretest_result(state, True)
         assert len(state.completed_probes) == 1
         assert state.completed_probes[0]["correct"] == 3
+
+
+class TestInitialDescent:
+    def test_create_state_starts_with_initial_descent(self):
+        settings = PretestSettings()
+        state = create_pretest_state(settings)
+        assert state.search_phase == "initial_descent"
+
+    def test_descent_halves_until_wrong_then_backtracks(self):
+        state = make_default_state(start_with_descent=True)
+        start_value = state.current_probe_value
+
+        state = process_pretest_result(state, True)
+        assert state.search_phase == "initial_descent"
+        assert state.current_probe_value == pytest.approx(start_value / 2.0)
+
+        wrong_value = state.current_probe_value
+        state = process_pretest_result(state, False)
+        assert state.search_phase == "find_anchor"
+        assert state.search_lo == pytest.approx(wrong_value)
+        assert state.search_hi == pytest.approx(start_value)
+        assert state.current_probe_value == pytest.approx((wrong_value + start_value) / 2.0)
+
+    def test_descent_wrong_on_first_trial_backtracks_with_double_step(self):
+        state = make_default_state(start_with_descent=True)
+        start_value = state.current_probe_value
+
+        state = process_pretest_result(state, False)
+        assert state.search_phase == "find_anchor"
+        assert state.search_lo == pytest.approx(start_value)
+        assert state.search_hi == pytest.approx(state.global_size_max)
+
+    def test_descent_reaches_min_without_wrong(self):
+        state = make_default_state(
+            start_with_descent=True,
+            global_size_min=25.0,
+            global_size_max=100.0,
+            search_lo=25.0,
+            search_hi=100.0,
+            current_probe_value=62.5,
+        )
+
+        state = process_pretest_result(state, True)  # 62.5 -> 31.25
+        assert state.search_phase == "initial_descent"
+        assert state.current_probe_value == pytest.approx(31.25)
+
+        state = process_pretest_result(state, True)  # 31.25 -> next halving would go below min
+        assert state.search_phase == "find_anchor"
+        assert state.search_lo == pytest.approx(25.0)
+        assert state.search_hi == pytest.approx(31.25)
+        assert state.current_probe_value == pytest.approx(28.125)
 
 
 class TestAnchorSearch:

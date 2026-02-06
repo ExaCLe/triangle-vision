@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import Content from "./Content";
+import { applyOrientationFlip, orientationFromArrowKey } from "../helpers";
+import { normalizePretestSettings } from "../pretestSettings";
 import "../css/PlayTest.css";
 
 function PlayTest() {
@@ -12,6 +14,35 @@ function PlayTest() {
   const { theme } = useTheme();
   const [totalSamples, setTotalSamples] = useState(0);
   const [currentPhase, setCurrentPhase] = useState("main");
+  const [debugEnabled, setDebugEnabled] = useState(true);
+  const [debugVisible, setDebugVisible] = useState(true);
+  const [debugData, setDebugData] = useState(null);
+  const [debugError, setDebugError] = useState(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugDetail, setDebugDetail] = useState("detailed");
+  const [displaySettings, setDisplaySettings] = useState(
+    normalizePretestSettings().display
+  );
+  const [stimulusPhase, setStimulusPhase] = useState("stimulus");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [didInitialFetch, setDidInitialFetch] = useState(false);
+  const waitTimeoutRef = useRef(null);
+
+  const waitFor = useCallback((durationMs) =>
+    new Promise((resolve) => {
+      const ms = Math.max(0, Number(durationMs) || 0);
+      if (ms === 0) {
+        resolve();
+        return;
+      }
+      if (waitTimeoutRef.current) {
+        window.clearTimeout(waitTimeoutRef.current);
+      }
+      waitTimeoutRef.current = window.setTimeout(() => {
+        waitTimeoutRef.current = null;
+        resolve();
+      }, ms);
+    }), []);
 
   const hslToRgb = (h, s, l) => {
     s /= 100;
@@ -34,7 +65,45 @@ function PlayTest() {
     return `rgb(${r}, ${g}, ${b})`;
   };
 
-  const fetchNextCombination = async () => {
+  const formatNumber = (value, maxFractionDigits = 2) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "N/A";
+    }
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: maxFractionDigits,
+    }).format(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "N/A";
+    }
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
+  const formatBounds = (bounds, sizeDigits = 1, satDigits = 3) => {
+    if (!bounds) return "N/A";
+    return `${formatNumber(bounds.size_min, sizeDigits)} - ${formatNumber(
+      bounds.size_max,
+      sizeDigits
+    )} | sat ${formatNumber(bounds.saturation_min, satDigits)} - ${formatNumber(
+      bounds.saturation_max,
+      satDigits
+    )}`;
+  };
+
+  const formatTimestamp = (value) => {
+    if (!value) return "N/A";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "N/A";
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  const fetchNextCombination = useCallback(async (applyResult = true) => {
     try {
       let url;
       if (runId) {
@@ -43,30 +112,81 @@ function PlayTest() {
         url = `http://localhost:8000/api/test-combinations/next/${testId}`;
       }
       const response = await fetch(url);
-      const data = await response.json();
-      setCurrentTest(data);
-      setStartTime(Date.now());
-      setTotalSamples(data.total_samples);
-      if (data.phase) {
-        setCurrentPhase(data.phase);
+      if (!response.ok) {
+        if (applyResult) {
+          setCurrentTest(null);
+          setStartTime(null);
+          setDidInitialFetch(true);
+        }
+        return null;
       }
+      const data = await response.json();
+      if (!data || !data.orientation) {
+        if (applyResult) {
+          setCurrentTest(null);
+          setStartTime(null);
+          setDidInitialFetch(true);
+        }
+        return null;
+      }
+      if (applyResult) {
+        setCurrentTest(data);
+        setStartTime(Date.now());
+        setTotalSamples(data.total_samples ?? 0);
+        if (data.phase) {
+          setCurrentPhase(data.phase);
+        }
+        setDidInitialFetch(true);
+      }
+      return data;
     } catch (error) {
       console.error("Error fetching next combination:", error);
+      if (applyResult) {
+        setDidInitialFetch(true);
+      }
+      return null;
     }
-  };
+  }, [runId, testId]);
 
-  const submitResult = async (success) => {
-    if (!currentTest) return;
-    const answerTime = Date.now() - startTime;
+  const fetchDebugInfo = useCallback(async () => {
+    if (!debugEnabled || !debugVisible) return;
+    setDebugLoading(true);
+    setDebugError(null);
+    try {
+      const url = runId
+        ? `http://localhost:8000/api/runs/${runId}/debug`
+        : `http://localhost:8000/api/tests/${testId}/debug`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch debug info");
+      }
+      const data = await response.json();
+      setDebugData(data);
+    } catch (error) {
+      console.error("Error fetching debug info:", error);
+      setDebugError("Debug info unavailable");
+    } finally {
+      setDebugLoading(false);
+    }
+  }, [debugEnabled, debugVisible, runId, testId]);
+
+  const submitResult = useCallback(async (success) => {
+    if (!currentTest || isSubmitting || stimulusPhase !== "stimulus") return;
+    const answerTime = startTime ? Date.now() - startTime : 0;
+    const maskDuration = displaySettings?.masking?.duration_ms ?? 0;
+    const einkEnabled = Boolean(displaySettings?.eink?.enabled);
+    const einkFlashDuration = displaySettings?.eink?.flash_duration_ms ?? 0;
 
     try {
+      setIsSubmitting(true);
       setFeedback({
         correct: success,
         time: answerTime,
       });
+      setStimulusPhase("mask");
 
       if (runId) {
-        await fetch(`http://localhost:8000/api/runs/${runId}/result`, {
+        const response = await fetch(`http://localhost:8000/api/runs/${runId}/result`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -76,8 +196,11 @@ function PlayTest() {
             success: success ? 1 : 0,
           }),
         });
+        if (!response.ok) {
+          throw new Error("Failed to submit run result");
+        }
       } else {
-        await fetch("http://localhost:8000/api/test-combinations/result", {
+        const response = await fetch("http://localhost:8000/api/test-combinations/result", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -85,79 +208,519 @@ function PlayTest() {
             success: success ? 1 : 0,
           }),
         });
+        if (!response.ok) {
+          throw new Error("Failed to submit test combination result");
+        }
       }
 
-      fetchNextCombination();
+      const nextTrialPromise = fetchNextCombination(false);
+
+      await waitFor(maskDuration);
+
+      if (einkEnabled) {
+        setStimulusPhase("eink");
+        await waitFor(einkFlashDuration);
+      }
+
+      const nextTrial = await nextTrialPromise;
+      if (nextTrial) {
+        setCurrentTest(nextTrial);
+        setStartTime(Date.now());
+        setTotalSamples(nextTrial.total_samples ?? 0);
+        if (nextTrial.phase) {
+          setCurrentPhase(nextTrial.phase);
+        }
+      } else {
+        setCurrentTest(null);
+        setStartTime(null);
+      }
+      setDidInitialFetch(true);
+      setStimulusPhase("stimulus");
+      if (debugVisible) {
+        await fetchDebugInfo();
+      }
 
       setTimeout(() => {
         setFeedback(null);
       }, 500);
     } catch (error) {
       console.error("Error submitting result:", error);
+      setStimulusPhase("stimulus");
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }, [
+    currentTest,
+    debugVisible,
+    displaySettings,
+    fetchDebugInfo,
+    fetchNextCombination,
+    isSubmitting,
+    runId,
+    startTime,
+    stimulusPhase,
+    waitFor,
+  ]);
 
   useEffect(() => {
-    fetchNextCombination();
-  }, [testId, runId]);
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/api/settings/pretest"
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        const normalized = normalizePretestSettings(data);
+        const enabled = normalized.debug.enabled;
+        setDebugEnabled(enabled);
+        setDisplaySettings(normalized.display);
+        if (!enabled) {
+          setDebugVisible(false);
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      }
+    };
 
-  const handleKeyPress = (event) => {
-    if (
-      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
-    ) {
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    setDidInitialFetch(false);
+    setStimulusPhase("stimulus");
+    fetchNextCombination();
+  }, [fetchNextCombination]);
+
+  useEffect(() => {
+    if (debugVisible) {
+      fetchDebugInfo();
+    }
+  }, [debugVisible, fetchDebugInfo]);
+
+  const handleKeyPress = useCallback((event) => {
+    const keyOrientation = orientationFromArrowKey(event.key);
+    if (keyOrientation) {
       event.preventDefault();
     }
 
-    const orientation = currentTest?.orientation;
-    let success = false;
+    if (!keyOrientation) return;
+    if (!currentTest || stimulusPhase !== "stimulus" || isSubmitting) return;
 
-    switch (event.key) {
-      case "ArrowUp":
-        success = orientation === "N";
-        break;
-      case "ArrowRight":
-        success = orientation === "E";
-        break;
-      case "ArrowDown":
-        success = orientation === "S";
-        break;
-      case "ArrowLeft":
-        success = orientation === "W";
-        break;
-      default:
-        return;
-    }
+    const expectedOrientation = applyOrientationFlip(
+      currentTest.orientation,
+      displaySettings?.flip
+    );
+    const success = keyOrientation === expectedOrientation;
 
-    if (
-      ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)
-    ) {
-      submitResult(success);
-    }
-  };
+    submitResult(success);
+  }, [currentTest, displaySettings, isSubmitting, stimulusPhase, submitResult]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [currentTest, feedback]);
+  }, [handleKeyPress]);
+
+  useEffect(() => {
+    return () => {
+      if (waitTimeoutRef.current) {
+        window.clearTimeout(waitTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const runCounts = debugData?.counts?.run || null;
+  const testCounts = debugData?.counts?.test || null;
+  const bounds = debugData?.bounds || null;
+  const rectangles = debugData?.rectangles || null;
+  const pretestState = debugData?.pretest_state || null;
+  const pretestWarnings = debugData?.run?.pretest_warnings || [];
+  const lastResult = debugData?.last_result || null;
 
   return (
     <>
-      {currentPhase === "pretest" && (
+      {debugEnabled && (
+        <div
+          className="debug-toggle"
+          style={{ top: currentPhase === "pretest" ? "42px" : "12px" }}
+        >
+          <button
+            className={`debug-toggle-btn ${debugVisible ? "active" : ""}`}
+            onClick={() => setDebugVisible((prev) => !prev)}
+            type="button"
+          >
+            Debug {debugVisible ? "On" : "Off"}
+          </button>
+        </div>
+      )}
+
+      {debugEnabled && debugVisible && (
+        <div
+          className={`debug-panel ${
+            currentPhase === "pretest" ? "debug-panel-pretest" : ""
+          }`}
+        >
+          <div className="debug-panel-header">
+            <div>
+              <div className="debug-panel-title">Debug Overlay</div>
+              <div className="debug-panel-meta">
+                <span>Phase: {debugData?.phase || currentPhase}</span>
+                <span>Updated: {formatTimestamp(debugData?.timestamp)}</span>
+                {debugLoading && <span>Updating...</span>}
+              </div>
+            </div>
+            <div className="debug-panel-controls">
+              <button
+                type="button"
+                className={`debug-level-btn ${
+                  debugDetail === "summary" ? "active" : ""
+                }`}
+                onClick={() => setDebugDetail("summary")}
+              >
+                Summary
+              </button>
+              <button
+                type="button"
+                className={`debug-level-btn ${
+                  debugDetail === "detailed" ? "active" : ""
+                }`}
+                onClick={() => setDebugDetail("detailed")}
+              >
+                Detailed
+              </button>
+            </div>
+          </div>
+
+          <div className="debug-grid">
+            <div className="debug-stat">
+              <div className="debug-stat-label">Run</div>
+              <div className="debug-stat-value">
+                {runId
+                  ? `#${debugData?.run?.id ?? runId} | ${
+                      debugData?.run?.status || "N/A"
+                    } | ${debugData?.run?.pretest_mode || "N/A"}`
+                  : `Test #${debugData?.test?.id ?? testId}`}
+              </div>
+              <div className="debug-stat-hint">
+                {debugData?.test?.title || "N/A"}
+              </div>
+            </div>
+
+            <div className="debug-stat">
+              <div className="debug-stat-label">Current Trial</div>
+              <div className="debug-stat-value">
+                size {formatNumber(currentTest?.triangle_size, 1)} | sat{" "}
+                {formatNumber(currentTest?.saturation, 3)} |{" "}
+                {currentTest?.orientation || "N/A"}
+              </div>
+              <div className="debug-stat-hint">
+                rect {currentTest?.rectangle_id ?? "N/A"} | total{" "}
+                {formatNumber(totalSamples, 0)}
+              </div>
+            </div>
+
+            {runCounts && (
+              <div className="debug-stat">
+                <div className="debug-stat-label">Run Counts</div>
+                <div className="debug-stat-value">
+                  correct {runCounts.correct} / incorrect {runCounts.incorrect}
+                </div>
+                <div className="debug-stat-hint">
+                  total {runCounts.total} | pretest {runCounts.pretest} | main{" "}
+                  {runCounts.main} | rate {formatPercent(runCounts.success_rate)}
+                </div>
+              </div>
+            )}
+
+            {testCounts && (
+              <div className="debug-stat">
+                <div className="debug-stat-label">Test Counts</div>
+                <div className="debug-stat-value">
+                  correct {testCounts.correct} / incorrect {testCounts.incorrect}
+                </div>
+                <div className="debug-stat-hint">
+                  total {testCounts.total} | pretest {testCounts.pretest} | main{" "}
+                  {testCounts.main} | rate {formatPercent(testCounts.success_rate)}
+                </div>
+              </div>
+            )}
+
+            <div className="debug-stat">
+              <div className="debug-stat-label">Active Bounds</div>
+              <div className="debug-stat-value">
+                {formatBounds(bounds?.active)}
+              </div>
+              <div className="debug-stat-hint">
+                source: {bounds?.active_source || "N/A"}
+              </div>
+            </div>
+
+            <div className="debug-stat">
+              <div className="debug-stat-label">Global Limits</div>
+              <div className="debug-stat-value">
+                {formatBounds(bounds?.global)}
+              </div>
+            </div>
+
+            {rectangles && (
+              <div className="debug-stat">
+                <div className="debug-stat-label">Rectangles</div>
+                <div className="debug-stat-value">
+                  {rectangles.count} total
+                </div>
+                <div className="debug-stat-hint">
+                  true {rectangles.total_true} | false {rectangles.total_false}
+                </div>
+              </div>
+            )}
+
+            {lastResult && (
+              <div className="debug-stat">
+                <div className="debug-stat-label">Last Result</div>
+                <div className="debug-stat-value">
+                  size {formatNumber(lastResult.triangle_size, 1)} | sat{" "}
+                  {formatNumber(lastResult.saturation, 3)} |{" "}
+                  {lastResult.orientation}
+                </div>
+                <div className="debug-stat-hint">
+                  success {lastResult.success} | {lastResult.phase}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {debugDetail === "detailed" && (
+            <div className="debug-section">
+              {bounds?.test && (
+                <div className="debug-subsection">
+                  <div className="debug-subsection-title">Test Bounds</div>
+                  <div className="debug-subsection-value">
+                    {formatBounds(bounds.test)}
+                  </div>
+                </div>
+              )}
+
+              {bounds?.run && (
+                <div className="debug-subsection">
+                  <div className="debug-subsection-title">Run Bounds</div>
+                  <div className="debug-subsection-value">
+                    {formatBounds(bounds.run)}
+                  </div>
+                </div>
+              )}
+
+              {pretestState && (
+                <details className="debug-details">
+                  <summary>Pretest State</summary>
+                  <div className="debug-kv-grid">
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Axis</span>
+                      <span className="debug-kv-value">
+                        {pretestState.current_axis}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Phase</span>
+                      <span className="debug-kv-value">
+                        {pretestState.search_phase}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Probe Value</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.current_probe_value, 3)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Probe Correct</span>
+                      <span className="debug-kv-value">
+                        {pretestState.current_probe_correct}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Probe Trials</span>
+                      <span className="debug-kv-value">
+                        {pretestState.current_probe_trials}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Probes Used</span>
+                      <span className="debug-kv-value">
+                        {pretestState.probes_used}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Bracket</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.bracket_lo, 3)} -{" "}
+                        {formatNumber(pretestState.bracket_hi, 3)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Anchor</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.anchor_value, 3)} (
+                        {formatNumber(pretestState.anchor_p_hat, 3)})
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Size Lower</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.size_lower, 2)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Size Upper</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.size_upper, 2)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Size 95%</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.size_95, 2)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Sat Lower</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.saturation_lower, 3)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Sat Upper</span>
+                      <span className="debug-kv-value">
+                        {formatNumber(pretestState.saturation_upper, 3)}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Refine Step</span>
+                      <span className="debug-kv-value">
+                        {pretestState.refine_step}
+                      </span>
+                    </div>
+                    <div className="debug-kv">
+                      <span className="debug-kv-label">Complete</span>
+                      <span className="debug-kv-value">
+                        {pretestState.is_complete ? "yes" : "no"}
+                      </span>
+                    </div>
+                  </div>
+                </details>
+              )}
+
+              {pretestWarnings.length > 0 && (
+                <details className="debug-details">
+                  <summary>Pretest Warnings</summary>
+                  <div className="debug-warning-list">
+                    {pretestWarnings.map((warning, index) => (
+                      <div key={index} className="debug-warning-item">
+                        {warning}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {pretestState?.completed_probes?.length > 0 && (
+                <details className="debug-details">
+                  <summary>
+                    Completed Probes ({pretestState.completed_probes.length})
+                  </summary>
+                  <div className="debug-table-wrap">
+                    <table className="debug-table">
+                      <thead>
+                        <tr>
+                          <th>Axis</th>
+                          <th>Phase</th>
+                          <th>Value</th>
+                          <th>Correct</th>
+                          <th>Trials</th>
+                          <th>P_hat</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pretestState.completed_probes.map((probe, index) => (
+                          <tr key={index}>
+                            <td>{probe.axis}</td>
+                            <td>{probe.phase}</td>
+                            <td>{formatNumber(probe.value, 3)}</td>
+                            <td>{probe.correct}</td>
+                            <td>{probe.trials}</td>
+                            <td>{formatNumber(probe.p_hat, 3)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+
+              {rectangles?.items?.length > 0 && (
+                <details className="debug-details">
+                  <summary>Rectangles ({rectangles.items.length})</summary>
+                  <div className="debug-table-wrap">
+                    <table className="debug-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Triangle Size</th>
+                          <th>Saturation</th>
+                          <th>Area</th>
+                          <th>True</th>
+                          <th>False</th>
+                          <th>Weight</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rectangles.items.map((rect) => (
+                          <tr key={rect.id}>
+                            <td>{rect.id}</td>
+                            <td>
+                        {formatNumber(rect.bounds.triangle_size[0], 2)} -{" "}
+                        {formatNumber(rect.bounds.triangle_size[1], 2)}
+                      </td>
+                      <td>
+                        {formatNumber(rect.bounds.saturation[0], 3)} -{" "}
+                        {formatNumber(rect.bounds.saturation[1], 3)}
+                      </td>
+                            <td>{formatNumber(rect.area, 4)}</td>
+                            <td>{rect.true_samples}</td>
+                            <td>{rect.false_samples}</td>
+                            <td>{formatNumber(rect.selection_weight, 4)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+
+          {debugError && (
+            <div className="debug-error">{debugError}</div>
+          )}
+        </div>
+      )}
+
+      {currentPhase === "pretest" && stimulusPhase === "stimulus" && (
         <div className="pretest-banner">PRETEST</div>
       )}
-      <div className="play-page">
-        <div className="play-info">
-          <span className="sample-count">#{totalSamples}</span>
-          <Link
-            to={`/test-visualization/${testId}`}
-            className="btn btn-outline btn-icon"
-          >
-            <span className="icon">📊</span>
-          </Link>
+      {stimulusPhase === "stimulus" && (
+        <div className="play-page">
+          <div className="play-info">
+            <span className="sample-count">#{totalSamples}</span>
+            <Link
+              to={`/test-visualization/${testId}`}
+              className="btn btn-outline btn-icon"
+            >
+              <span className="icon">📊</span>
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
       <div className="play-test-container">
-        {currentTest ? (
+        {stimulusPhase === "stimulus" && currentTest ? (
           <Content
             sideLength={currentTest.triangle_size}
             diameter={800}
@@ -171,9 +734,22 @@ function PlayTest() {
             )}
             orientation={currentTest.orientation}
           />
-        ) : (
-          <div>Loading...</div>
+        ) : null}
+
+        {stimulusPhase === "eink" && (
+          <div
+            className={`eink-flash-screen ${
+              displaySettings?.eink?.flash_color === "black"
+                ? "eink-black"
+                : "eink-white"
+            }`}
+          />
         )}
+
+        {!didInitialFetch && (
+          <div className="play-loading-indicator">Loading...</div>
+        )}
+
         {feedback && (
           <div
             style={{
