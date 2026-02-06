@@ -489,7 +489,7 @@ function SettingsPage() {
             <span className="setting-help">
               Shows a simulation toolbar during tests. Use hotkeys to run
               automated trials with a ground-truth model (1 = one trial,
-              5 / 0 / shift+0 for 5 / 10 / 50).
+              5 / 0 / ⇧0 for 5 / 10 / 50).
             </span>
           </div>
         </div>

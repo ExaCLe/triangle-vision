@@ -405,7 +405,7 @@ function PlayTest() {
       if (event.key === "1") count = 1;
       else if (event.key === "5") count = 5;
       else if (event.key === "0" && !event.shiftKey) count = 10;
-      else if (event.key === ")" || (event.key === "0" && event.shiftKey)) count = 50;
+      else if (event.key === ")") count = 50;
       if (count > 0) {
         event.preventDefault();
         runSimulation(count);
