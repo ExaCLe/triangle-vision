@@ -1,6 +1,7 @@
 import json
 from sqlalchemy.orm import Session
-from models.settings import Setting, PretestSettings
+from models.settings import Setting
+from schemas.settings import PretestSettings
 
 PRETEST_SETTINGS_KEY = "pretest_settings"
 

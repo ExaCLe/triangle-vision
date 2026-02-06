@@ -2,11 +2,12 @@ import matplotlib
 
 matplotlib.use("Agg")  # Set the backend to non-interactive Agg
 import matplotlib.pyplot as plt
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from db.database import get_db
-from models.test import TestCreate, TestUpdate, TestResponse, Test, Rectangle
+from models.test import Test, Rectangle
+from schemas.test import TestCreate, TestUpdate, TestResponse
 import crud.test as crud
 import io
 from algorithm_to_find_combinations.plotting import (
@@ -16,6 +17,7 @@ from algorithm_to_find_combinations.plotting import (
 from fastapi.responses import StreamingResponse
 from algorithm_to_find_combinations.algorithm import AlgorithmState, update_state
 import base64
+import numpy as np
 
 router = APIRouter(prefix="/tests", tags=["tests"])
 
@@ -188,8 +190,6 @@ def get_test_plot(
 
         plot_data = []
         if step:
-            import numpy as np
-
             # Extract contour segments at exactly 0.75 without drawing them
             CS = ax.contour(X_s, Y_s, Z_s, levels=[threshold], colors="none")
             segments = CS.allsegs[0]  # segments for level 0.75

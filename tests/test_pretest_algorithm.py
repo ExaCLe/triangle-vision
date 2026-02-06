@@ -8,7 +8,7 @@ from algorithm_to_find_combinations.pretest import (
     serialize_pretest_state,
     deserialize_pretest_state,
 )
-from models.settings import PretestSettings
+from schemas.settings import PretestSettings
 
 
 def make_default_state(**overrides):

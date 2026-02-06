@@ -19,7 +19,7 @@ def test_create_test(client: TestClient):
         "min_saturation": 0.2,
         "max_saturation": 0.8,
     }
-    response = client.post("/tests/", json=test_data)
+    response = client.post("/api/tests/", json=test_data)
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == test_data["title"]
@@ -61,9 +61,9 @@ def test_read_tests(client: TestClient):
         },
     ]
     for data in test_data:
-        client.post("/tests/", json=data)
+        client.post("/api/tests/", json=data)
 
-    response = client.get("/tests/")
+    response = client.get("/api/tests/")
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
@@ -96,11 +96,11 @@ def test_read_test(client: TestClient):
         "min_saturation": 0.2,
         "max_saturation": 0.8,
     }
-    create_response = client.post("/tests/", json=test_data)
+    create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
 
     # Test successful retrieval
-    response = client.get(f"/tests/{test_id}")
+    response = client.get(f"/api/tests/{test_id}")
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == test_data["title"]
@@ -111,7 +111,7 @@ def test_read_test(client: TestClient):
     assert data["max_saturation"] == test_data["max_saturation"]
 
     # Test non-existent ID
-    response = client.get("/tests/999999")
+    response = client.get("/api/tests/999999")
     assert response.status_code == 404
 
 
@@ -133,7 +133,7 @@ def test_update_test(client: TestClient):
         "min_saturation": 0.2,
         "max_saturation": 0.8,
     }
-    create_response = client.post("/tests/", json=test_data)
+    create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
     original_created_at = create_response.json()["created_at"]
 
@@ -146,7 +146,7 @@ def test_update_test(client: TestClient):
         "min_saturation": 0.3,
         "max_saturation": 0.9,
     }
-    response = client.put(f"/tests/{test_id}", json=update_data)
+    response = client.put(f"/api/tests/{test_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == update_data["title"]
@@ -158,7 +158,7 @@ def test_update_test(client: TestClient):
     assert data["max_saturation"] == update_data["max_saturation"]
 
     # Test non-existent ID
-    response = client.put("/tests/999999", json=update_data)
+    response = client.put("/api/tests/999999", json=update_data)
     assert response.status_code == 404
 
 
@@ -180,11 +180,11 @@ def test_delete_test(client: TestClient):
         "min_saturation": 0.2,
         "max_saturation": 0.8,
     }
-    create_response = client.post("/tests/", json=test_data)
+    create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
 
     # Delete the test
-    response = client.delete(f"/tests/{test_id}")
+    response = client.delete(f"/api/tests/{test_id}")
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == test_data["title"]
@@ -195,9 +195,9 @@ def test_delete_test(client: TestClient):
     assert data["max_saturation"] == test_data["max_saturation"]
 
     # Verify the test is deleted
-    response = client.get(f"/tests/{test_id}")
+    response = client.get(f"/api/tests/{test_id}")
     assert response.status_code == 404
 
     # Test non-existent ID
-    response = client.delete("/tests/999999")
+    response = client.delete("/api/tests/999999")
     assert response.status_code == 404

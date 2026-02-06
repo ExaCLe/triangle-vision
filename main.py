@@ -3,28 +3,15 @@ import sys
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from sqlalchemy import inspect, text
-from db.database import engine
-from models.test import Base
-from models.settings import Setting  # Ensure settings table is created
+from alembic.config import Config
+from alembic import command
 from routers import test_router, test_combination_router
 from routers import settings_router, run_router
 from fastapi.middleware.cors import CORSMiddleware
 
-# Initialize the database
-Base.metadata.create_all(bind=engine)
-
-# Migration: add new columns to existing tables if missing
-inspector = inspect(engine)
-if "test_combinations" in inspector.get_table_names():
-    existing_columns = {col["name"] for col in inspector.get_columns("test_combinations")}
-    with engine.connect() as conn:
-        if "run_id" not in existing_columns:
-            conn.execute(text("ALTER TABLE test_combinations ADD COLUMN run_id INTEGER REFERENCES runs(id)"))
-            conn.commit()
-        if "phase" not in existing_columns:
-            conn.execute(text("ALTER TABLE test_combinations ADD COLUMN phase VARCHAR DEFAULT 'main'"))
-            conn.commit()
+# Run Alembic migrations to ensure the database schema is up to date
+alembic_cfg = Config(os.path.join(os.path.dirname(os.path.abspath(__file__)), "alembic.ini"))
+command.upgrade(alembic_cfg, "head")
 
 app = FastAPI()
 

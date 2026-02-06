@@ -1,18 +1,12 @@
 import json
 import random
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Literal
 from db.database import get_db
-from models.test import (
-    Run,
-    RunCreate,
-    RunResponse,
-    RunSummary,
-    TestCombination,
-    Test,
-    Rectangle,
-)
+from models.test import Run, TestCombination, Test, Rectangle
+from schemas.test import RunCreate, RunResponse, RunSummary, ORIENTATIONS
 from crud.settings import get_pretest_settings
 from algorithm_to_find_combinations.pretest import (
     create_pretest_state,
@@ -26,11 +20,9 @@ from algorithm_to_find_combinations.algorithm import (
     get_next_combination,
     update_state,
 )
-from routers.test_combination_router import _load_algorithm_state, _sync_algorithm_state
+from crud.algorithm_state import sync_algorithm_state
 
 router = APIRouter(prefix="/runs", tags=["runs"])
-
-orientations = ["N", "E", "S", "W"]
 
 
 def _save_pretest_state(run: Run, state, db: Session):
@@ -86,8 +78,6 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
         run.pretest_saturation_min = run_data.pretest_saturation_min
         run.pretest_saturation_max = run_data.pretest_saturation_max
         run.status = "main"
-        # Create initial rectangle for the main phase
-        _create_initial_rectangle(db, run_data.test_id, run)
 
     elif run_data.pretest_mode == "reuse_last":
         last_run = (
@@ -110,20 +100,11 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
         run.pretest_saturation_min = last_run.pretest_saturation_min
         run.pretest_saturation_max = last_run.pretest_saturation_max
         run.status = "main"
-        _create_initial_rectangle(db, run_data.test_id, run)
 
     db.add(run)
     db.commit()
     db.refresh(run)
     return run
-
-
-def _create_initial_rectangle(db: Session, test_id: int, run: Run):
-    """Create a single rectangle covering the pretest-derived bounds."""
-    # Delete existing rectangles for this test to start fresh for the run
-    # Note: we don't delete old rectangles since other runs may use them
-    # Instead, the algorithm will create rectangles as needed
-    pass
 
 
 @router.get("/{run_id}", response_model=RunResponse)
@@ -195,7 +176,7 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
         if not combination:
             raise HTTPException(status_code=404, detail="No more combinations to test")
 
-        _sync_algorithm_state(state, run.test_id, db)
+        sync_algorithm_state(state, run.test_id, db)
 
         db_rectangle = (
             db.query(Rectangle)
@@ -215,7 +196,7 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
             "rectangle_id": db_rectangle.id if db_rectangle else None,
             "triangle_size": combination["triangle_size"],
             "saturation": combination["saturation"],
-            "orientation": random.choice(orientations),
+            "orientation": random.choice(ORIENTATIONS),
             "success": 0,
             "phase": "main",
             "total_samples": total_samples,
@@ -223,10 +204,6 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
 
     else:
         raise HTTPException(status_code=400, detail="Run is already completed")
-
-
-from pydantic import BaseModel
-from typing import Literal
 
 
 class RunTrialResult(BaseModel):
@@ -365,7 +342,7 @@ def submit_run_result(run_id: int, result: RunTrialResult, db: Session = Depends
             state = update_state(
                 state, selected_rect, result.model_dump(), success_bool
             )
-            _sync_algorithm_state(state, run.test_id, db)
+            sync_algorithm_state(state, run.test_id, db)
 
         return {"message": "Main result recorded", "phase": "main"}
 

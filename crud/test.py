@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from models.test import Test, TestCreate, TestUpdate
+from models.test import Test
+from schemas.test import TestCreate, TestUpdate
 
 
 def create_test(db: Session, test: TestCreate):

@@ -1,6 +1,12 @@
 *.pyc
+__pycache__/
 .DS_Store
 *.db
 build/
 dist/
 .idea/
+*.egg-info/
+.env
+venv/
+*.egg
+.pytest_cache/

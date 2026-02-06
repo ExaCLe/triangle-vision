@@ -1,30 +1,18 @@
+import csv
+import random
+from io import StringIO
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List, Dict, Literal
+from typing import List, Literal
 from pydantic import BaseModel
 from db.database import get_db
-import random
-from models.test import (
-    TestCombination,
-    TestCombinationBase,
-    TestCombinationCreate,
-    TestCombinationResponse,
-    Test,
-    Rectangle,
-)
-from algorithm_to_find_combinations.algorithm import (
-    AlgorithmState,
-    get_next_combination,
-    update_state,
-)
-from crud.test import get_test
-from fastapi.responses import StreamingResponse
-import csv
-from io import StringIO
+from models.test import TestCombination, Test, Rectangle
+from schemas.test import TestCombinationResponse, ORIENTATIONS
+from algorithm_to_find_combinations.algorithm import get_next_combination, update_state
+from crud.algorithm_state import load_algorithm_state, sync_algorithm_state
 
 router = APIRouter(prefix="/test-combinations", tags=["test-combinations"])
-
-orientations = ["N", "E", "S", "W"]
 
 
 def _validate_orientation(orientation: str) -> str:
@@ -93,76 +81,6 @@ def read_test_combinations_by_test(test_id: int, db: Session = Depends(get_db)):
     ]
 
 
-def _load_algorithm_state(db: Session, test_id: int) -> AlgorithmState:
-    test = get_test(db, test_id)
-    if not test:
-        raise HTTPException(status_code=404, detail="Test not found")
-
-    triangle_size_bounds = (test.min_triangle_size, test.max_triangle_size)
-    saturation_bounds = (test.min_saturation, test.max_saturation)
-
-    # Load existing rectangles from database
-    db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == test_id).all()
-
-    # Convert database rectangles to algorithm format
-    rectangles = []
-    for rect in db_rectangles:
-        rectangles.append(
-            {
-                "bounds": {
-                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
-                    "saturation": (rect.min_saturation, rect.max_saturation),
-                },
-                "area": rect.area,
-                "true_samples": rect.true_samples,
-                "false_samples": rect.false_samples,
-            }
-        )
-
-    return AlgorithmState(triangle_size_bounds, saturation_bounds, rectangles)
-
-
-def _sync_algorithm_state(state: AlgorithmState, test_id: int, db: Session):
-    """Sync algorithm state changes with database"""
-    # Remove split rectangles
-    for removed_rect in state.removed_rectangles:
-        db_rect = (
-            db.query(Rectangle)
-            .filter(
-                Rectangle.test_id == test_id,
-                Rectangle.min_triangle_size
-                == removed_rect["bounds"]["triangle_size"][0],
-                Rectangle.max_triangle_size
-                == removed_rect["bounds"]["triangle_size"][1],
-                Rectangle.min_saturation == removed_rect["bounds"]["saturation"][0],
-                Rectangle.max_saturation == removed_rect["bounds"]["saturation"][1],
-            )
-            .first()
-        )
-        if db_rect:
-            db.delete(db_rect)
-
-    # Add new rectangles
-    for new_rect in state.new_rectangles:
-        db_rect = Rectangle(
-            test_id=test_id,
-            min_triangle_size=new_rect["bounds"]["triangle_size"][0],
-            max_triangle_size=new_rect["bounds"]["triangle_size"][1],
-            min_saturation=new_rect["bounds"]["saturation"][0],
-            max_saturation=new_rect["bounds"]["saturation"][1],
-            area=new_rect["area"],
-            true_samples=new_rect["true_samples"],
-            false_samples=new_rect["false_samples"],
-        )
-        db.add(db_rect)
-
-    # Clear change tracking
-    state.new_rectangles = []
-    state.removed_rectangles = []
-
-    db.commit()
-
-
 class TestCombinationResult(BaseModel):
     test_id: int
     rectangle_id: int
@@ -184,13 +102,13 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         db.query(TestCombination).filter(TestCombination.test_id == test_id).count()
     )
 
-    state = _load_algorithm_state(db, test_id)
+    state = load_algorithm_state(db, test_id)
     combination, selected_rect = get_next_combination(state)
     if not combination:
         raise HTTPException(status_code=404, detail="No more combinations to test")
 
     # Sync any state changes with database
-    _sync_algorithm_state(state, test_id, db)
+    sync_algorithm_state(state, test_id, db)
 
     # Find the corresponding rectangle in database
     db_rectangle = (
@@ -211,7 +129,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
         "rectangle_id": db_rectangle.id,
         "triangle_size": combination["triangle_size"],
         "saturation": combination["saturation"],
-        "orientation": random.choice(orientations),
+        "orientation": random.choice(ORIENTATIONS),
         "success": 0,  # Initial success value
         "total_samples": total_samples,  # This now includes the current combination
     }
@@ -220,7 +138,7 @@ def get_next_test_combination(test_id: int, db: Session = Depends(get_db)):
 @router.post("/result")
 def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_db)):
     """Submit the result of a test combination and update rectangle cache"""
-    if result.orientation not in orientations:
+    if result.orientation not in ORIENTATIONS:
         raise HTTPException(status_code=422, detail="Invalid orientation")
 
     # Verify rectangle exists
@@ -241,7 +159,7 @@ def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_
     db.refresh(rectangle)
 
     # Load state and update algorithm
-    state = _load_algorithm_state(db, result.test_id)
+    state = load_algorithm_state(db, result.test_id)
     selected_rect = next(
         (
             r
@@ -260,7 +178,7 @@ def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_
         state = update_state(
             state, selected_rect, result.model_dump(), bool(result.success)
         )
-        _sync_algorithm_state(state, result.test_id, db)
+        sync_algorithm_state(state, result.test_id, db)
 
     return {"message": "Test result recorded successfully"}
 
