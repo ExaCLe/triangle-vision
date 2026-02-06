@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models.test import Test
+from models.test import Test, TestCombination, Rectangle, Run
 from schemas.test import TestCreate, TestUpdate
 
 
@@ -32,6 +32,16 @@ def update_test(db: Session, test_id: int, test: TestUpdate):
 def delete_test(db: Session, test_id: int):
     db_test = db.query(Test).filter(Test.id == test_id).first()
     if db_test:
+        # Delete child records first to avoid relationship/FK issues.
+        db.query(TestCombination).filter(
+            TestCombination.test_id == test_id
+        ).delete(synchronize_session=False)
+        db.query(Rectangle).filter(Rectangle.test_id == test_id).delete(
+            synchronize_session=False
+        )
+        db.query(Run).filter(Run.test_id == test_id).delete(
+            synchronize_session=False
+        )
         db.delete(db_test)
         db.commit()
     return db_test

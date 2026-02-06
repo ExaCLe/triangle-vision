@@ -14,20 +14,16 @@ def test_create_test(client: TestClient):
     test_data = {
         "title": "Test Title",
         "description": "Test Description",
-        "min_triangle_size": 1.0,
-        "max_triangle_size": 5.0,
-        "min_saturation": 0.2,
-        "max_saturation": 0.8,
     }
     response = client.post("/api/tests/", json=test_data)
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
-    assert data["min_triangle_size"] == test_data["min_triangle_size"]
-    assert data["max_triangle_size"] == test_data["max_triangle_size"]
-    assert data["min_saturation"] == test_data["min_saturation"]
-    assert data["max_saturation"] == test_data["max_saturation"]
+    assert data["min_triangle_size"] is None
+    assert data["max_triangle_size"] is None
+    assert data["min_saturation"] is None
+    assert data["max_saturation"] is None
     assert "id" in data
     assert "created_at" in data
 
@@ -46,10 +42,6 @@ def test_read_tests(client: TestClient):
         {
             "title": "Test 1",
             "description": "Description 1",
-            "min_triangle_size": 1.0,
-            "max_triangle_size": 5.0,
-            "min_saturation": 0.2,
-            "max_saturation": 0.8,
         },
         {
             "title": "Test 2",
@@ -91,10 +83,6 @@ def test_read_test(client: TestClient):
     test_data = {
         "title": "Test Title",
         "description": "Test Description",
-        "min_triangle_size": 1.0,
-        "max_triangle_size": 5.0,
-        "min_saturation": 0.2,
-        "max_saturation": 0.8,
     }
     create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
@@ -105,10 +93,10 @@ def test_read_test(client: TestClient):
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
-    assert data["min_triangle_size"] == test_data["min_triangle_size"]
-    assert data["max_triangle_size"] == test_data["max_triangle_size"]
-    assert data["min_saturation"] == test_data["min_saturation"]
-    assert data["max_saturation"] == test_data["max_saturation"]
+    assert data["min_triangle_size"] is None
+    assert data["max_triangle_size"] is None
+    assert data["min_saturation"] is None
+    assert data["max_saturation"] is None
 
     # Test non-existent ID
     response = client.get("/api/tests/999999")
@@ -128,10 +116,6 @@ def test_update_test(client: TestClient):
     test_data = {
         "title": "Original Title",
         "description": "Original Description",
-        "min_triangle_size": 1.0,
-        "max_triangle_size": 5.0,
-        "min_saturation": 0.2,
-        "max_saturation": 0.8,
     }
     create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
@@ -175,10 +159,6 @@ def test_delete_test(client: TestClient):
     test_data = {
         "title": "Test Title",
         "description": "Test Description",
-        "min_triangle_size": 1.0,
-        "max_triangle_size": 5.0,
-        "min_saturation": 0.2,
-        "max_saturation": 0.8,
     }
     create_response = client.post("/api/tests/", json=test_data)
     test_id = create_response.json()["id"]
@@ -189,10 +169,10 @@ def test_delete_test(client: TestClient):
     data = response.json()
     assert data["title"] == test_data["title"]
     assert data["description"] == test_data["description"]
-    assert data["min_triangle_size"] == test_data["min_triangle_size"]
-    assert data["max_triangle_size"] == test_data["max_triangle_size"]
-    assert data["min_saturation"] == test_data["min_saturation"]
-    assert data["max_saturation"] == test_data["max_saturation"]
+    assert data["min_triangle_size"] is None
+    assert data["max_triangle_size"] is None
+    assert data["min_saturation"] is None
+    assert data["max_saturation"] is None
 
     # Verify the test is deleted
     response = client.get(f"/api/tests/{test_id}")
@@ -201,3 +181,55 @@ def test_delete_test(client: TestClient):
     # Test non-existent ID
     response = client.delete("/api/tests/999999")
     assert response.status_code == 404
+
+
+def test_delete_test_with_related_run_and_combination(client: TestClient):
+    """
+    Deleting a test should also remove related runs/combinations so deletion
+    still succeeds after the test has execution history.
+    """
+    create_response = client.post(
+        "/api/tests/",
+        json={"title": "Delete With History", "description": "Has related data"},
+    )
+    assert create_response.status_code == 200
+    test_id = create_response.json()["id"]
+
+    run_response = client.post(
+        "/api/runs/",
+        json={
+            "test_id": test_id,
+            "pretest_mode": "manual",
+            "pretest_size_min": 100.0,
+            "pretest_size_max": 200.0,
+            "pretest_saturation_min": 0.2,
+            "pretest_saturation_max": 0.8,
+        },
+    )
+    assert run_response.status_code == 200
+    run_id = run_response.json()["id"]
+
+    next_trial_response = client.get(f"/api/runs/{run_id}/next")
+    assert next_trial_response.status_code == 200
+    trial = next_trial_response.json()
+
+    result_response = client.post(
+        f"/api/runs/{run_id}/result",
+        json={
+            "triangle_size": trial["triangle_size"],
+            "saturation": trial["saturation"],
+            "orientation": trial["orientation"],
+            "success": 1,
+        },
+    )
+    assert result_response.status_code == 200
+
+    delete_response = client.delete(f"/api/tests/{test_id}")
+    assert delete_response.status_code == 200
+
+    assert client.get(f"/api/tests/{test_id}").status_code == 404
+    assert client.get(f"/api/runs/{run_id}").status_code == 404
+
+    combinations_response = client.get(f"/api/test-combinations/test/{test_id}")
+    assert combinations_response.status_code == 200
+    assert combinations_response.json() == []

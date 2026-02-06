@@ -1,5 +1,10 @@
 import { Link } from "react-router-dom";
 
+const formatNumber = (value, maxFractionDigits) =>
+  Number(value).toLocaleString(undefined, {
+    maximumFractionDigits: maxFractionDigits,
+  });
+
 function TestCard({ test, onEdit, onDelete, onPlay }) {
   const {
     id,
@@ -10,12 +15,12 @@ function TestCard({ test, onEdit, onDelete, onPlay }) {
     min_saturation,
     max_saturation,
   } = test;
-
-  const handleDelete = async () => {
-    if (window.confirm("Are you sure you want to delete this test?")) {
-      onDelete(id);
-    }
-  };
+  const hasStoredBounds = [
+    min_triangle_size,
+    max_triangle_size,
+    min_saturation,
+    max_saturation,
+  ].every((v) => v !== null && v !== undefined);
 
   return (
     <div className="card">
@@ -26,15 +31,28 @@ function TestCard({ test, onEdit, onDelete, onPlay }) {
       <div className="card-content">
         <div className="card-meta">
           <div className="card-meta-item">
-            <span className="card-meta-label">Size</span>
+            <span className="card-meta-label">Bounds</span>
             <span className="card-meta-value">
-              {min_triangle_size} — {max_triangle_size}
-            </span>
-          </div>
-          <div className="card-meta-item">
-            <span className="card-meta-label">Sat.</span>
-            <span className="card-meta-value">
-              {min_saturation} — {max_saturation}
+              {hasStoredBounds
+                ? (
+                  <>
+                    <span className="bounds-line">
+                      <span className="bounds-key">Size</span>
+                      <span>
+                        {formatNumber(min_triangle_size, 2)} -{" "}
+                        {formatNumber(max_triangle_size, 2)}
+                      </span>
+                    </span>
+                    <span className="bounds-line">
+                      <span className="bounds-key">Sat</span>
+                      <span>
+                        {formatNumber(min_saturation, 3)} -{" "}
+                        {formatNumber(max_saturation, 3)}
+                      </span>
+                    </span>
+                  </>
+                )
+                : "Set when starting a run"}
             </span>
           </div>
         </div>
@@ -74,7 +92,7 @@ function TestCard({ test, onEdit, onDelete, onPlay }) {
         </button>
         <button
           className="btn btn-outline btn-icon"
-          onClick={handleDelete}
+          onClick={() => onDelete(test)}
           title="Delete test"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

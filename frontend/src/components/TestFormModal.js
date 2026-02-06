@@ -13,8 +13,8 @@ function TestFormModal({ isOpen, onClose, onSubmit, mode, defaultValues }) {
           </h2>
           <p className="modal-description">
             {mode === "create"
-              ? "Create a new vision test by filling out the form below."
-              : "Modify the existing vision test by updating the form below."}
+              ? "Create a new vision test. Search bounds are configured when you start a run."
+              : "Modify the existing vision test metadata."}
           </p>
         </div>
         <TestForm onSubmit={onSubmit} defaultValues={defaultValues} />

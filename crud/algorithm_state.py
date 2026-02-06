@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models.test import Rectangle
 from algorithm_to_find_combinations.algorithm import AlgorithmState
 from crud.test import get_test
+from crud.settings import get_pretest_settings
 
 
 def load_algorithm_state(db: Session, test_id: int) -> AlgorithmState:
@@ -10,8 +11,27 @@ def load_algorithm_state(db: Session, test_id: int) -> AlgorithmState:
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    triangle_size_bounds = (test.min_triangle_size, test.max_triangle_size)
-    saturation_bounds = (test.min_saturation, test.max_saturation)
+    if all(
+        v is not None
+        for v in [
+            test.min_triangle_size,
+            test.max_triangle_size,
+            test.min_saturation,
+            test.max_saturation,
+        ]
+    ):
+        triangle_size_bounds = (test.min_triangle_size, test.max_triangle_size)
+        saturation_bounds = (test.min_saturation, test.max_saturation)
+    else:
+        settings = get_pretest_settings(db)
+        triangle_size_bounds = (
+            settings.global_limits.min_triangle_size,
+            settings.global_limits.max_triangle_size,
+        )
+        saturation_bounds = (
+            settings.global_limits.min_saturation,
+            settings.global_limits.max_saturation,
+        )
 
     # Load existing rectangles from database
     db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == test_id).all()

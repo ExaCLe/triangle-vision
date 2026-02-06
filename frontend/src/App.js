@@ -7,6 +7,8 @@ import PlayTest from "./components/PlayTest";
 import TestVisualization from "./components/TestVisualization";
 import StartRunModal from "./components/StartRunModal";
 import SettingsPage from "./components/SettingsPage";
+import DeleteConfirmModal from "./components/DeleteConfirmModal";
+import Toast from "./components/Toast";
 import "./css/App.css";
 import Navbar from "./components/Navbar";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -20,6 +22,17 @@ function App() {
   const [selectedTest, setSelectedTest] = useState(null);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [runModalTest, setRunModalTest] = useState(null);
+  const [testPendingDelete, setTestPendingDelete] = useState(null);
+  const [isDeletingTest, setIsDeletingTest] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const refetchTests = async () => {
     setLoading(true);
@@ -72,23 +85,49 @@ function App() {
     }
   };
 
-  const handleDeleteTest = async (testId) => {
+  const showToast = (message, type = "info") => {
+    setToast({ message, type, createdAt: Date.now() });
+  };
+
+  const handleDeleteTest = async () => {
+    if (!testPendingDelete) return;
+
+    const { id, title } = testPendingDelete;
+    setIsDeletingTest(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/tests/${testId}`,
+        `http://localhost:8000/api/tests/${id}`,
         {
           method: "DELETE",
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to delete test");
+        let errorDetail = `status ${response.status}`;
+        const errorBody = await response.text();
+        if (errorBody) {
+          try {
+            const payload = JSON.parse(errorBody);
+            if (payload?.detail) {
+              errorDetail = `${response.status}: ${payload.detail}`;
+            } else {
+              errorDetail = `${response.status}: ${errorBody}`;
+            }
+          } catch (_) {
+            errorDetail = `${response.status}: ${errorBody}`;
+          }
+        }
+        throw new Error(`Failed to delete test (${errorDetail})`);
       }
 
       await refetchTests();
+      setTestPendingDelete(null);
+      showToast(`Deleted "${title}"`, "success");
     } catch (error) {
       console.error("Error deleting test:", error);
-      alert("Failed to delete test. Please try again.");
+      showToast(`Could not delete "${title}"`, "error");
+    } finally {
+      setIsDeletingTest(false);
     }
   };
 
@@ -101,6 +140,32 @@ function App() {
   const handlePlayTest = (test) => {
     setRunModalTest(test);
     setIsRunModalOpen(true);
+  };
+
+  const handleRunCreated = (run) => {
+    if (
+      !run ||
+      run.pretest_size_min === null ||
+      run.pretest_size_max === null ||
+      run.pretest_saturation_min === null ||
+      run.pretest_saturation_max === null
+    ) {
+      return;
+    }
+
+    setTests((previousTests) =>
+      previousTests.map((existingTest) =>
+        existingTest.id === run.test_id
+          ? {
+              ...existingTest,
+              min_triangle_size: run.pretest_size_min,
+              max_triangle_size: run.pretest_size_max,
+              min_saturation: run.pretest_saturation_min,
+              max_saturation: run.pretest_saturation_max,
+            }
+          : existingTest
+      )
+    );
   };
 
   return (
@@ -139,7 +204,7 @@ function App() {
                           key={test.id}
                           test={test}
                           onEdit={handleEditTest}
-                          onDelete={handleDeleteTest}
+                          onDelete={setTestPendingDelete}
                           onPlay={handlePlayTest}
                         />
                       ))
@@ -174,7 +239,20 @@ function App() {
               setRunModalTest(null);
             }}
             test={runModalTest}
+            onRunCreated={handleRunCreated}
           />
+          <DeleteConfirmModal
+            isOpen={Boolean(testPendingDelete)}
+            test={testPendingDelete}
+            isDeleting={isDeletingTest}
+            onCancel={() => {
+              if (!isDeletingTest) {
+                setTestPendingDelete(null);
+              }
+            }}
+            onConfirm={handleDeleteTest}
+          />
+          <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
       </Router>
     </ThemeProvider>

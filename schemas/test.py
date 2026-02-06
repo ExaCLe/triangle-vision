@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from typing import Literal, Optional, List, Dict, Any
 
 ORIENTATIONS = ["N", "E", "S", "W"]
@@ -8,10 +8,34 @@ ORIENTATIONS = ["N", "E", "S", "W"]
 class TestBase(BaseModel):
     title: str
     description: str
-    min_triangle_size: float
-    max_triangle_size: float
-    min_saturation: float
-    max_saturation: float
+    min_triangle_size: Optional[float] = None
+    max_triangle_size: Optional[float] = None
+    min_saturation: Optional[float] = None
+    max_saturation: Optional[float] = None
+
+    @model_validator(mode="after")
+    def validate_bounds(self):
+        bounds = [
+            self.min_triangle_size,
+            self.max_triangle_size,
+            self.min_saturation,
+            self.max_saturation,
+        ]
+        has_any_bound = any(v is not None for v in bounds)
+        has_all_bounds = all(v is not None for v in bounds)
+
+        if has_any_bound and not has_all_bounds:
+            raise ValueError(
+                "If bounds are provided, all four values are required "
+                "(min/max triangle size and min/max saturation)."
+            )
+
+        if has_all_bounds:
+            if self.min_triangle_size > self.max_triangle_size:
+                raise ValueError("min_triangle_size must be <= max_triangle_size")
+            if self.min_saturation > self.max_saturation:
+                raise ValueError("min_saturation must be <= max_saturation")
+        return self
 
 
 class TestCreate(TestBase):
@@ -19,7 +43,8 @@ class TestCreate(TestBase):
 
 
 class TestUpdate(TestBase):
-    pass
+    title: Optional[str] = None
+    description: Optional[str] = None
 
 
 class TestResponse(TestBase):
@@ -81,6 +106,7 @@ class RunCreate(BaseModel):
     pretest_size_max: Optional[float] = None
     pretest_saturation_min: Optional[float] = None
     pretest_saturation_max: Optional[float] = None
+    reuse_test_id: Optional[int] = None
 
 
 class RunResponse(BaseModel):

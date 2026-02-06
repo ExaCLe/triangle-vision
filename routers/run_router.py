@@ -3,7 +3,7 @@ import random
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List, Literal
+from typing import List, Literal, Optional
 from db.database import get_db
 from models.test import Run, TestCombination, Test, Rectangle
 from schemas.test import RunCreate, RunResponse, RunSummary, ORIENTATIONS
@@ -23,6 +23,74 @@ from algorithm_to_find_combinations.algorithm import (
 from crud.algorithm_state import sync_algorithm_state
 
 router = APIRouter(prefix="/runs", tags=["runs"])
+
+
+def _test_bounds_complete(test: Test) -> bool:
+    return all(
+        v is not None
+        for v in [
+            test.min_triangle_size,
+            test.max_triangle_size,
+            test.min_saturation,
+            test.max_saturation,
+        ]
+    )
+
+
+def _resolve_run_bounds(run: Run, test: Test, db: Session):
+    settings = get_pretest_settings(db)
+
+    size_min = (
+        run.pretest_size_min
+        if run.pretest_size_min is not None
+        else (
+            test.min_triangle_size
+            if test.min_triangle_size is not None
+            else settings.global_limits.min_triangle_size
+        )
+    )
+    size_max = (
+        run.pretest_size_max
+        if run.pretest_size_max is not None
+        else (
+            test.max_triangle_size
+            if test.max_triangle_size is not None
+            else settings.global_limits.max_triangle_size
+        )
+    )
+    sat_min = (
+        run.pretest_saturation_min
+        if run.pretest_saturation_min is not None
+        else (
+            test.min_saturation
+            if test.min_saturation is not None
+            else settings.global_limits.min_saturation
+        )
+    )
+    sat_max = (
+        run.pretest_saturation_max
+        if run.pretest_saturation_max is not None
+        else (
+            test.max_saturation
+            if test.max_saturation is not None
+            else settings.global_limits.max_saturation
+        )
+    )
+
+    return (size_min, size_max), (sat_min, sat_max)
+
+
+def _persist_test_bounds(
+    test: Test,
+    size_min: float,
+    size_max: float,
+    sat_min: float,
+    sat_max: float,
+):
+    test.min_triangle_size = size_min
+    test.max_triangle_size = size_max
+    test.min_saturation = sat_min
+    test.max_saturation = sat_max
 
 
 def _save_pretest_state(run: Run, state, db: Session):
@@ -52,11 +120,12 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
 
     if run_data.pretest_mode == "run":
         settings = get_pretest_settings(db)
-        # Override global limits with test bounds
-        settings.global_limits.min_triangle_size = test.min_triangle_size
-        settings.global_limits.max_triangle_size = test.max_triangle_size
-        settings.global_limits.min_saturation = test.min_saturation
-        settings.global_limits.max_saturation = test.max_saturation
+        # If test bounds exist, use them; otherwise use configured global limits.
+        if _test_bounds_complete(test):
+            settings.global_limits.min_triangle_size = test.min_triangle_size
+            settings.global_limits.max_triangle_size = test.max_triangle_size
+            settings.global_limits.min_saturation = test.min_saturation
+            settings.global_limits.max_saturation = test.max_saturation
         pretest_state = create_pretest_state(settings)
         run.status = "pretest"
         run.pretest_state_json = json.dumps(serialize_pretest_state(pretest_state))
@@ -77,28 +146,73 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
         run.pretest_size_max = run_data.pretest_size_max
         run.pretest_saturation_min = run_data.pretest_saturation_min
         run.pretest_saturation_max = run_data.pretest_saturation_max
+        if run.pretest_size_min > run.pretest_size_max:
+            raise HTTPException(
+                status_code=422,
+                detail="pretest_size_min must be <= pretest_size_max",
+            )
+        if run.pretest_saturation_min > run.pretest_saturation_max:
+            raise HTTPException(
+                status_code=422,
+                detail="pretest_saturation_min must be <= pretest_saturation_max",
+            )
+        _persist_test_bounds(
+            test,
+            run.pretest_size_min,
+            run.pretest_size_max,
+            run.pretest_saturation_min,
+            run.pretest_saturation_max,
+        )
         run.status = "main"
 
     elif run_data.pretest_mode == "reuse_last":
+        reuse_test_id: int = run_data.reuse_test_id or run_data.test_id
+        reuse_test: Optional[Test] = (
+            db.query(Test).filter(Test.id == reuse_test_id).first()
+        )
+        if not reuse_test:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source test {reuse_test_id} not found",
+            )
+
         last_run = (
             db.query(Run)
             .filter(
-                Run.test_id == run_data.test_id,
+                Run.test_id == reuse_test_id,
                 Run.status.in_(["main", "completed"]),
                 Run.pretest_size_min.isnot(None),
+                Run.pretest_size_max.isnot(None),
+                Run.pretest_saturation_min.isnot(None),
+                Run.pretest_saturation_max.isnot(None),
             )
             .order_by(Run.created_at.desc())
             .first()
         )
-        if not last_run:
+
+        if last_run:
+            run.pretest_size_min = last_run.pretest_size_min
+            run.pretest_size_max = last_run.pretest_size_max
+            run.pretest_saturation_min = last_run.pretest_saturation_min
+            run.pretest_saturation_max = last_run.pretest_saturation_max
+        elif _test_bounds_complete(reuse_test):
+            # Fallback: reuse the source test's persisted pretest bounds.
+            run.pretest_size_min = reuse_test.min_triangle_size
+            run.pretest_size_max = reuse_test.max_triangle_size
+            run.pretest_saturation_min = reuse_test.min_saturation
+            run.pretest_saturation_max = reuse_test.max_saturation
+        else:
             raise HTTPException(
                 status_code=404,
-                detail="No previous completed run with pretest bounds found",
+                detail="No reusable pretest bounds found for selected source test",
             )
-        run.pretest_size_min = last_run.pretest_size_min
-        run.pretest_size_max = last_run.pretest_size_max
-        run.pretest_saturation_min = last_run.pretest_saturation_min
-        run.pretest_saturation_max = last_run.pretest_saturation_max
+        _persist_test_bounds(
+            test,
+            run.pretest_size_min,
+            run.pretest_size_max,
+            run.pretest_saturation_min,
+            run.pretest_saturation_max,
+        )
         run.status = "main"
 
     db.add(run)
@@ -148,14 +262,9 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
     elif run.status == "main":
         # Use pretest bounds as the search window
         test = db.query(Test).filter(Test.id == run.test_id).first()
-        size_bounds = (
-            run.pretest_size_min if run.pretest_size_min is not None else test.min_triangle_size,
-            run.pretest_size_max if run.pretest_size_max is not None else test.max_triangle_size,
-        )
-        sat_bounds = (
-            run.pretest_saturation_min if run.pretest_saturation_min is not None else test.min_saturation,
-            run.pretest_saturation_max if run.pretest_saturation_max is not None else test.max_saturation,
-        )
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+        size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
 
         # Load rectangles for this test
         db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()
@@ -250,6 +359,16 @@ def submit_run_result(run_id: int, result: RunTrialResult, db: Session = Depends
             run.pretest_saturation_max = pretest_state.saturation_upper
             run.status = "main"
             run.pretest_warnings = json.dumps(pretest_state.warnings)
+            # Persist latest pretest result on the test so future runs can reuse it.
+            test = db.query(Test).filter(Test.id == run.test_id).first()
+            if test:
+                _persist_test_bounds(
+                    test,
+                    run.pretest_size_min,
+                    run.pretest_size_max,
+                    run.pretest_saturation_min,
+                    run.pretest_saturation_max,
+                )
 
         _save_pretest_state(run, pretest_state, db)
         db.commit()
@@ -264,14 +383,9 @@ def submit_run_result(run_id: int, result: RunTrialResult, db: Session = Depends
     elif run.status == "main":
         # Find the rectangle for this combination
         test = db.query(Test).filter(Test.id == run.test_id).first()
-        size_bounds = (
-            run.pretest_size_min if run.pretest_size_min is not None else test.min_triangle_size,
-            run.pretest_size_max if run.pretest_size_max is not None else test.max_triangle_size,
-        )
-        sat_bounds = (
-            run.pretest_saturation_min if run.pretest_saturation_min is not None else test.min_saturation,
-            run.pretest_saturation_max if run.pretest_saturation_max is not None else test.max_saturation,
-        )
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+        size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
 
         # Load algorithm state
         db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()

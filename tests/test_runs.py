@@ -8,10 +8,6 @@ def _create_test(client: TestClient):
     test_data = {
         "title": "Run Test",
         "description": "Test for runs",
-        "min_triangle_size": 50.0,
-        "max_triangle_size": 300.0,
-        "min_saturation": 0.1,
-        "max_saturation": 1.0,
     }
     response = client.post("/api/tests/", json=test_data)
     assert response.status_code == 200
@@ -52,6 +48,14 @@ def test_create_run_with_manual_mode(client: TestClient):
     assert data["pretest_size_min"] == 100.0
     assert data["pretest_saturation_max"] == 0.8
 
+    test_response = client.get(f"/api/tests/{test_id}")
+    assert test_response.status_code == 200
+    test_data = test_response.json()
+    assert test_data["min_triangle_size"] == 100.0
+    assert test_data["max_triangle_size"] == 200.0
+    assert test_data["min_saturation"] == 0.3
+    assert test_data["max_saturation"] == 0.8
+
 
 def test_create_run_manual_missing_bounds(client: TestClient):
     """Manual mode without bounds should fail with 422."""
@@ -71,6 +75,138 @@ def test_create_run_reuse_last_no_prior(client: TestClient):
         json={"test_id": test_id, "pretest_mode": "reuse_last"},
     )
     assert response.status_code == 404
+
+
+def test_create_run_reuse_last_from_other_test(client: TestClient):
+    """Reuse mode should support bounds sourced from a different test."""
+    source_test_id = _create_test(client)
+    target_test_id = _create_test(client)
+
+    manual_run_response = client.post(
+        "/api/runs/",
+        json={
+            "test_id": source_test_id,
+            "pretest_mode": "manual",
+            "pretest_size_min": 110.0,
+            "pretest_size_max": 210.0,
+            "pretest_saturation_min": 0.25,
+            "pretest_saturation_max": 0.75,
+        },
+    )
+    assert manual_run_response.status_code == 200
+
+    response = client.post(
+        "/api/runs/",
+        json={
+            "test_id": target_test_id,
+            "pretest_mode": "reuse_last",
+            "reuse_test_id": source_test_id,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "main"
+    assert data["pretest_size_min"] == 110.0
+    assert data["pretest_size_max"] == 210.0
+    assert data["pretest_saturation_min"] == 0.25
+    assert data["pretest_saturation_max"] == 0.75
+
+    target_test_response = client.get(f"/api/tests/{target_test_id}")
+    assert target_test_response.status_code == 200
+    target_test_data = target_test_response.json()
+    assert target_test_data["min_triangle_size"] == 110.0
+    assert target_test_data["max_triangle_size"] == 210.0
+    assert target_test_data["min_saturation"] == 0.25
+    assert target_test_data["max_saturation"] == 0.75
+
+
+def test_create_run_reuse_last_from_other_test_saved_bounds(client: TestClient):
+    """Reuse mode can use source test's saved bounds even without prior runs."""
+    source_test_id = _create_test(client)
+    target_test_id = _create_test(client)
+
+    update_response = client.put(
+        f"/api/tests/{source_test_id}",
+        json={
+            "min_triangle_size": 120.0,
+            "max_triangle_size": 240.0,
+            "min_saturation": 0.2,
+            "max_saturation": 0.7,
+        },
+    )
+    assert update_response.status_code == 200
+
+    response = client.post(
+        "/api/runs/",
+        json={
+            "test_id": target_test_id,
+            "pretest_mode": "reuse_last",
+            "reuse_test_id": source_test_id,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "main"
+    assert data["pretest_size_min"] == 120.0
+    assert data["pretest_size_max"] == 240.0
+    assert data["pretest_saturation_min"] == 0.2
+    assert data["pretest_saturation_max"] == 0.7
+
+
+def test_pretest_completion_persists_bounds_on_test(client: TestClient):
+    """Finishing pretest should persist resulting bounds on the test."""
+    # Speed up pretest completion for deterministic tests.
+    settings_response = client.put(
+        "/api/settings/pretest",
+        json={
+            "lower_target": 0.4,
+            "upper_target": 0.95,
+            "probe_rule": {"success_target": 1, "trial_cap": 1},
+            "search": {"max_probes_per_axis": 1, "refine_steps_per_edge": 1},
+            "global_limits": {
+                "min_triangle_size": 10.0,
+                "max_triangle_size": 400.0,
+                "min_saturation": 0.0,
+                "max_saturation": 1.0,
+            },
+        },
+    )
+    assert settings_response.status_code == 200
+
+    test_id = _create_test(client)
+    run_response = client.post(
+        "/api/runs/",
+        json={"test_id": test_id, "pretest_mode": "run"},
+    )
+    assert run_response.status_code == 200
+    run_id = run_response.json()["id"]
+
+    for _ in range(20):
+        trial_response = client.get(f"/api/runs/{run_id}/next")
+        assert trial_response.status_code == 200
+        trial = trial_response.json()
+        result_response = client.post(
+            f"/api/runs/{run_id}/result",
+            json={
+                "triangle_size": trial["triangle_size"],
+                "saturation": trial["saturation"],
+                "orientation": trial["orientation"],
+                "success": 1,
+            },
+        )
+        assert result_response.status_code == 200
+        run_state = client.get(f"/api/runs/{run_id}")
+        assert run_state.status_code == 200
+        if run_state.json()["status"] == "main":
+            break
+
+    test_response = client.get(f"/api/tests/{test_id}")
+    assert test_response.status_code == 200
+    test_data = test_response.json()
+    assert test_data["min_triangle_size"] is not None
+    assert test_data["max_triangle_size"] is not None
+    assert test_data["min_saturation"] is not None
+    assert test_data["max_saturation"] is not None
 
 
 def test_get_next_trial_pretest(client: TestClient):

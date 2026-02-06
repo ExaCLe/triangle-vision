@@ -9,6 +9,7 @@ from db.database import get_db
 from models.test import Test, Rectangle
 from schemas.test import TestCreate, TestUpdate, TestResponse
 import crud.test as crud
+from crud.settings import get_pretest_settings
 import io
 from algorithm_to_find_combinations.plotting import (
     create_single_smooth_plot,
@@ -20,6 +21,35 @@ import base64
 import numpy as np
 
 router = APIRouter(prefix="/tests", tags=["tests"])
+
+
+def _test_has_bounds(test: Test) -> bool:
+    return all(
+        v is not None
+        for v in [
+            test.min_triangle_size,
+            test.max_triangle_size,
+            test.min_saturation,
+            test.max_saturation,
+        ]
+    )
+
+
+def _resolve_test_bounds(test: Test, db: Session):
+    if _test_has_bounds(test):
+        return (
+            (test.min_triangle_size, test.max_triangle_size),
+            (test.min_saturation, test.max_saturation),
+        )
+
+    settings = get_pretest_settings(db)
+    return (
+        (
+            settings.global_limits.min_triangle_size,
+            settings.global_limits.max_triangle_size,
+        ),
+        (settings.global_limits.min_saturation, settings.global_limits.max_saturation),
+    )
 
 
 @router.post("/", response_model=TestResponse)
@@ -42,6 +72,12 @@ def read_test(test_id: int, db: Session = Depends(get_db)):
 
 def recalculate_rectangles(db: Session, test: Test):
     """Recalculate rectangles based on test combinations"""
+    if not _test_has_bounds(test):
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot recalculate rectangles without test bounds",
+        )
+
     # Delete existing rectangles
     db.query(Rectangle).filter(Rectangle.test_id == test.id).delete()
 
@@ -104,21 +140,33 @@ def update_test(test_id: int, test_update: TestUpdate, db: Session = Depends(get
     if db_test is None:
         raise HTTPException(status_code=404, detail="Test not found")
 
+    update_data = test_update.model_dump(exclude_unset=True)
+    if not update_data:
+        return db_test
+
+    bound_keys = {
+        "min_triangle_size",
+        "max_triangle_size",
+        "min_saturation",
+        "max_saturation",
+    }
+
     # Check if bounds have changed
-    bounds_changed = (
-        db_test.min_triangle_size != test_update.min_triangle_size
-        or db_test.max_triangle_size != test_update.max_triangle_size
-        or db_test.min_saturation != test_update.min_saturation
-        or db_test.max_saturation != test_update.max_saturation
+    bounds_changed = any(
+        key in update_data and getattr(db_test, key) != update_data[key]
+        for key in bound_keys
     )
 
     # Update test attributes
-    for var, value in vars(test_update).items():
+    for var, value in update_data.items():
         setattr(db_test, var, value)
 
-    # If bounds changed, recalculate rectangles
+    # If bounds changed, either recalculate or clear stale rectangles.
     if bounds_changed:
-        recalculate_rectangles(db, db_test)
+        if _test_has_bounds(db_test):
+            recalculate_rectangles(db, db_test)
+        else:
+            db.query(Rectangle).filter(Rectangle.test_id == db_test.id).delete()
 
     db.commit()
     db.refresh(db_test)
@@ -156,8 +204,7 @@ def get_test_plot(
             }
             for c in db_test.combinations
         ]
-        triangle_size_bounds = (db_test.min_triangle_size, db_test.max_triangle_size)
-        saturation_bounds = (db_test.min_saturation, db_test.max_saturation)
+        triangle_size_bounds, saturation_bounds = _resolve_test_bounds(db_test, db)
 
         rectangles = None
         if show_rectangles:
