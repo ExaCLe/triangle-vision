@@ -298,8 +298,10 @@ function PlayTest() {
         if (!response.ok) return;
         const data = await response.json();
         setSimulationModels(data);
-        if (data.length > 0 && !data.find((m) => m.name === selectedModel)) {
-          setSelectedModel(data[0].name);
+        if (data.length > 0) {
+          setSelectedModel((prev) =>
+            data.find((m) => m.name === prev) ? prev : data[0].name
+          );
         }
       } catch (error) {
         console.error("Error fetching simulation models:", error);
