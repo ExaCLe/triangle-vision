@@ -12,9 +12,34 @@ from crud.settings import (
     save_custom_model,
     delete_custom_model,
 )
-from algorithm_to_find_combinations.ground_truth import SIMULATION_MODELS
+from algorithm_to_find_combinations.ground_truth import (
+    SIMULATION_MODELS,
+    model_probability,
+    _model_description,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+def _resolve_model(name: str, db: Session) -> dict | None:
+    """Look up a model by name — built-in first, then saved custom models."""
+    if name in SIMULATION_MODELS:
+        return SIMULATION_MODELS[name]
+    for m in get_custom_models(db):
+        if m["name"] == name:
+            return {
+                "label": m["name"],
+                "base": m["base"],
+                "coefficient": m["coefficient"],
+                "exponent": m["exponent"],
+                "size_scale": m.get("size_scale", 400.0),
+                "sat_scale": m.get("sat_scale", 1.0),
+                "description": _model_description(
+                    m["base"], m["coefficient"], m["exponent"],
+                    m.get("size_scale", 400.0), m.get("sat_scale", 1.0),
+                ),
+            }
+    return None
 
 
 @router.get("/pretest", response_model=PretestSettings)
@@ -28,30 +53,57 @@ def put_settings(settings: PretestSettings, db: Session = Depends(get_db)):
 
 
 @router.get("/simulation-models")
-def list_simulation_models():
-    """Return available ground-truth simulation models."""
-    return [
-        {"name": name, "label": entry["label"], "description": entry["description"]}
+def list_simulation_models(db: Session = Depends(get_db)):
+    """Return all available models — built-in + saved custom models."""
+    result = [
+        {
+            "name": name,
+            "label": entry["label"],
+            "description": entry["description"],
+            "base": entry["base"],
+            "coefficient": entry["coefficient"],
+            "exponent": entry["exponent"],
+            "size_scale": entry["size_scale"],
+            "sat_scale": entry["sat_scale"],
+        }
         for name, entry in SIMULATION_MODELS.items()
     ]
+    for m in get_custom_models(db):
+        result.append({
+            "name": m["name"],
+            "label": m["name"],
+            "description": _model_description(
+                m["base"], m["coefficient"], m["exponent"],
+                m.get("size_scale", 400.0), m.get("sat_scale", 1.0),
+            ),
+            "base": m["base"],
+            "coefficient": m["coefficient"],
+            "exponent": m["exponent"],
+            "size_scale": m.get("size_scale", 400.0),
+            "sat_scale": m.get("sat_scale", 1.0),
+        })
+    return result
 
 
 @router.get("/simulation-models/{model_name}/heatmap")
 def get_model_heatmap(
     model_name: str,
-    steps: int = Query(default=20, ge=2, le=100),
+    db: Session = Depends(get_db),
+    steps: int = Query(default=20, ge=2, le=500),
     min_triangle_size: float = Query(default=10),
     max_triangle_size: float = Query(default=400),
     min_saturation: float = Query(default=0),
     max_saturation: float = Query(default=1),
 ):
-    """Return a probability grid for the given model over the parameter space."""
-    entry = SIMULATION_MODELS.get(model_name)
+    """Return a probability grid for the given model over the parameter space.
+
+    Bounds control the viewing range only — probabilities are computed from
+    the model's absolute parameters (size_scale, sat_scale).
+    Works for both built-in and saved custom models.
+    """
+    entry = _resolve_model(model_name, db)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Unknown model: {model_name}")
-
-    prob_fn = entry["probability_fn"]
-    bounds = ((min_triangle_size, max_triangle_size), (min_saturation, max_saturation))
 
     ts_range = max_triangle_size - min_triangle_size
     sat_range = max_saturation - min_saturation
@@ -69,7 +121,11 @@ def get_model_heatmap(
     for sat in saturations:
         row = []
         for ts in triangle_sizes:
-            p = prob_fn(ts, sat, bounds)
+            p = model_probability(
+                ts, sat,
+                entry["base"], entry["coefficient"], entry["exponent"],
+                entry["size_scale"], entry["sat_scale"],
+            )
             row.append(round(p, 4))
         grid.append(row)
 
@@ -87,6 +143,8 @@ class CustomModelRequest(BaseModel):
     base: float = 0.6
     coefficient: float = 0.39
     exponent: float = 0.5
+    size_scale: float = 400.0
+    sat_scale: float = 1.0
     steps: int = 20
     min_triangle_size: float = 10
     max_triangle_size: float = 400
@@ -94,24 +152,13 @@ class CustomModelRequest(BaseModel):
     max_saturation: float = 1
 
 
-def _custom_probability(ts, sat, bounds, base, coefficient, exponent):
-    """Evaluate base + coefficient * ((ts_scaled^2 + sat_scaled^2) / 2)^exponent."""
-    ts_range = bounds[0][1] - bounds[0][0]
-    sat_range = bounds[1][1] - bounds[1][0]
-    ts_s = (ts - bounds[0][0]) / ts_range if ts_range else 0
-    sat_s = (sat - bounds[1][0]) / sat_range if sat_range else 0
-    raw = (ts_s ** 2 + sat_s ** 2) / 2.0
-    return min(1.0, max(0.0, base + coefficient * math.pow(raw, exponent)))
-
-
 @router.post("/simulation-models/custom/heatmap")
 def custom_model_heatmap(req: CustomModelRequest):
-    """Compute a heatmap for a user-defined model formula."""
-    steps = max(2, min(100, req.steps))
-    bounds = (
-        (req.min_triangle_size, req.max_triangle_size),
-        (req.min_saturation, req.max_saturation),
-    )
+    """Compute a heatmap for a user-defined model formula.
+
+    Uses absolute per-axis scaling — bounds are only for the grid range.
+    """
+    steps = max(2, min(500, req.steps))
     ts_range = req.max_triangle_size - req.min_triangle_size
     sat_range = req.max_saturation - req.min_saturation
 
@@ -128,13 +175,18 @@ def custom_model_heatmap(req: CustomModelRequest):
     for sat in saturations:
         row = []
         for ts in triangle_sizes:
-            p = _custom_probability(
-                ts, sat, bounds, req.base, req.coefficient, req.exponent
+            p = model_probability(
+                ts, sat,
+                req.base, req.coefficient, req.exponent,
+                req.size_scale, req.sat_scale,
             )
             row.append(round(p, 4))
         grid.append(row)
 
-    desc = f"{req.base} + {req.coefficient} * ((ts² + sat²) / 2)^{req.exponent}"
+    desc = (
+        f"{req.base} + {req.coefficient} * "
+        f"(((ts/{req.size_scale})² + (sat/{req.sat_scale})²) / 2)^{req.exponent}"
+    )
     return {
         "model_name": "custom",
         "label": f"Custom (base {req.base})",
@@ -150,6 +202,8 @@ class SaveCustomModelRequest(BaseModel):
     base: float = 0.6
     coefficient: float = 0.39
     exponent: float = 0.5
+    size_scale: float = 400.0
+    sat_scale: float = 1.0
 
 
 @router.get("/custom-models")
@@ -163,7 +217,11 @@ def create_custom_model(req: SaveCustomModelRequest, db: Session = Depends(get_d
     """Save a custom model."""
     if not req.name or not req.name.strip():
         raise HTTPException(status_code=400, detail="Model name is required")
-    model = save_custom_model(db, req.name.strip(), req.base, req.coefficient, req.exponent)
+    model = save_custom_model(
+        db, req.name.strip(),
+        req.base, req.coefficient, req.exponent,
+        req.size_scale, req.sat_scale,
+    )
     return model
 
 

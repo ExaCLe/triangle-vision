@@ -34,6 +34,9 @@ function PlayTest() {
   const [selectedModel, setSelectedModel] = useState("default");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationLog, setSimulationLog] = useState(null);
+  const [simHeatmap, setSimHeatmap] = useState(null);
+  const [simTrialMarkers, setSimTrialMarkers] = useState([]);
+  const [simGlobalBounds, setSimGlobalBounds] = useState(null);
 
   const waitFor = useCallback((durationMs) =>
     new Promise((resolve) => {
@@ -282,6 +285,12 @@ function PlayTest() {
         setDebugEnabled(enabled);
         setDisplaySettings(normalized.display);
         setSimulationEnabled(normalized.simulation?.enabled ?? false);
+        setSimGlobalBounds({
+          min_triangle_size: data.global_limits?.min_triangle_size ?? 10,
+          max_triangle_size: data.global_limits?.max_triangle_size ?? 400,
+          min_saturation: data.global_limits?.min_saturation ?? 0,
+          max_saturation: data.global_limits?.max_saturation ?? 1,
+        });
         if (!enabled) {
           setDebugVisible(false);
         }
@@ -311,6 +320,22 @@ function PlayTest() {
     fetchSettings();
     fetchModels();
   }, []);
+
+  // Fetch simulation heatmap when model or global bounds change
+  useEffect(() => {
+    if (!simulationEnabled || !selectedModel || !simGlobalBounds) return;
+    const b = simGlobalBounds;
+    const steps = 60;
+    const url =
+      `http://localhost:8000/api/settings/simulation-models/${encodeURIComponent(selectedModel)}/heatmap` +
+      `?steps=${steps}&min_triangle_size=${b.min_triangle_size}&max_triangle_size=${b.max_triangle_size}` +
+      `&min_saturation=${b.min_saturation}&max_saturation=${b.max_saturation}`;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setSimHeatmap(data))
+      .catch(() => setSimHeatmap(null));
+    setSimTrialMarkers([]);
+  }, [simulationEnabled, selectedModel, simGlobalBounds]);
 
   useEffect(() => {
     setDidInitialFetch(false);
@@ -377,9 +402,23 @@ function PlayTest() {
       }
       const data = await response.json();
       const correct = data.trials.filter((t) => t.success === 1).length;
+      const avgProb =
+        data.trials.length > 0
+          ? data.trials.reduce((s, t) => s + (t.probability ?? 0), 0) / data.trials.length
+          : 0;
       setSimulationLog(
-        `Simulated ${data.total_simulated} trial(s): ${correct} correct, ${data.total_simulated - correct} incorrect`
+        `Simulated ${data.total_simulated}: ${correct}/${data.total_simulated} correct | avg P = ${(avgProb * 100).toFixed(1)}%`
       );
+      // Accumulate trial markers (keep last 500)
+      setSimTrialMarkers((prev) => {
+        const newMarkers = data.trials.map((t) => ({
+          ts: t.triangle_size,
+          sat: t.saturation,
+          success: t.success,
+          probability: t.probability,
+        }));
+        return [...prev, ...newMarkers].slice(-500);
+      });
       setTotalSamples(data.total_samples ?? 0);
       // Refresh display
       const nextData = await fetchNextCombination(true);
@@ -853,58 +892,219 @@ function PlayTest() {
       </div>
 
       {simulationEnabled && runId && (
-        <div className="simulation-bar">
+        <div className="simulation-bar simulation-bar-with-heatmap">
           <div className="simulation-bar-inner">
-            <span className="simulation-bar-label">Simulation</span>
-            <select
-              className="simulation-model-select"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={isSimulating}
-            >
-              {simulationModels.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className="simulation-btn"
-              disabled={isSimulating}
-              onClick={() => runSimulation(1)}
-            >
-              ×1 <kbd>1</kbd>
-            </button>
-            <button
-              className="simulation-btn"
-              disabled={isSimulating}
-              onClick={() => runSimulation(5)}
-            >
-              ×5 <kbd>5</kbd>
-            </button>
-            <button
-              className="simulation-btn"
-              disabled={isSimulating}
-              onClick={() => runSimulation(10)}
-            >
-              ×10 <kbd>0</kbd>
-            </button>
-            <button
-              className="simulation-btn"
-              disabled={isSimulating}
-              onClick={() => runSimulation(50)}
-            >
-              ×50 <kbd>⇧0</kbd>
-            </button>
-            {isSimulating && <span className="simulation-spinner">Running…</span>}
-            {simulationLog && !isSimulating && (
-              <span className="simulation-log">{simulationLog}</span>
+            <div className="simulation-controls">
+              <span className="simulation-bar-label">Simulation</span>
+              <select
+                className="simulation-model-select"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={isSimulating}
+              >
+                {simulationModels.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="simulation-btn"
+                disabled={isSimulating}
+                onClick={() => runSimulation(1)}
+              >
+                ×1 <kbd>1</kbd>
+              </button>
+              <button
+                className="simulation-btn"
+                disabled={isSimulating}
+                onClick={() => runSimulation(5)}
+              >
+                ×5 <kbd>5</kbd>
+              </button>
+              <button
+                className="simulation-btn"
+                disabled={isSimulating}
+                onClick={() => runSimulation(10)}
+              >
+                ×10 <kbd>0</kbd>
+              </button>
+              <button
+                className="simulation-btn"
+                disabled={isSimulating}
+                onClick={() => runSimulation(50)}
+              >
+                ×50 <kbd>⇧0</kbd>
+              </button>
+              {isSimulating && <span className="simulation-spinner">Running…</span>}
+              {simulationLog && !isSimulating && (
+                <span className="simulation-log">{simulationLog}</span>
+              )}
+            </div>
+            {simHeatmap && (
+              <div className="simulation-heatmap-area">
+                <SimulationHeatmap
+                  heatmap={simHeatmap}
+                  markers={simTrialMarkers}
+                  currentTrial={currentTest}
+                />
+                {simTrialMarkers.length > 0 && (
+                  <div className="simulation-heatmap-legend">
+                    <span className="sim-legend-item">
+                      <span className="sim-legend-dot sim-legend-correct" /> correct
+                    </span>
+                    <span className="sim-legend-item">
+                      <span className="sim-legend-dot sim-legend-incorrect" /> incorrect
+                    </span>
+                    <span className="sim-legend-item">
+                      <span className="sim-legend-x">✕</span> current
+                    </span>
+                    <span className="sim-legend-count">
+                      {simTrialMarkers.length} pts
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
       )}
     </>
   );
+}
+
+/* ═══ Mini simulation heatmap with trial markers ═══ */
+function SimulationHeatmap({ heatmap, markers, currentTrial }) {
+  const canvasRef = useRef(null);
+
+  const cols = heatmap ? heatmap.triangle_sizes.length : 0;
+  const rows = heatmap ? heatmap.saturations.length : 0;
+  const mL = 42, mB = 32, mT = 8, mR = 8;
+  const plotW = 200, plotH = 160;
+  const totalW = plotW + mL + mR;
+  const totalH = plotH + mT + mB;
+
+  const tsMin = heatmap ? heatmap.triangle_sizes[0] : 0;
+  const tsMax = heatmap ? heatmap.triangle_sizes[cols - 1] : 1;
+  const satMin = heatmap ? heatmap.saturations[0] : 0;
+  const satMax = heatmap ? heatmap.saturations[rows - 1] : 1;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !heatmap) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = totalW * dpr;
+    canvas.height = totalH * dpr;
+    canvas.style.width = totalW + "px";
+    canvas.style.height = totalH + "px";
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, totalW, totalH);
+
+    const cellW = plotW / cols;
+    const cellH = plotH / rows;
+
+    // Draw heatmap cells
+    for (let si = 0; si < rows; si++) {
+      const ry = rows - 1 - si;
+      for (let ci = 0; ci < cols; ci++) {
+        const p = heatmap.grid[si][ci];
+        ctx.fillStyle = simRdYlGn(p);
+        ctx.fillRect(mL + ci * cellW, mT + ry * cellH, cellW + 0.5, cellH + 0.5);
+      }
+    }
+
+    // Helper to convert data coords to canvas coords
+    const tsRange = tsMax - tsMin || 1;
+    const satRange = satMax - satMin || 1;
+    const toX = (ts) => mL + ((ts - tsMin) / tsRange) * plotW;
+    const toY = (sat) => mT + (1 - (sat - satMin) / satRange) * plotH;
+
+    // Draw trial markers
+    markers.forEach((m) => {
+      const x = toX(m.ts);
+      const y = toY(m.sat);
+      ctx.fillStyle = m.success ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = m.success ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.4)";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
+
+    // Draw current trial crosshair
+    if (currentTrial) {
+      const cx = toX(currentTrial.triangle_size);
+      const cy = toY(currentTrial.saturation);
+      // White outline for visibility
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy - 8); ctx.lineTo(cx + 8, cy + 8);
+      ctx.moveTo(cx + 8, cy - 8); ctx.lineTo(cx - 8, cy + 8);
+      ctx.stroke();
+      // Dark X
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy - 8); ctx.lineTo(cx + 8, cy + 8);
+      ctx.moveTo(cx + 8, cy - 8); ctx.lineTo(cx - 8, cy + 8);
+      ctx.stroke();
+    }
+
+    // Border
+    ctx.strokeStyle = "#666";
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(mL, mT, plotW, plotH);
+
+    // X-axis labels
+    ctx.fillStyle = "#999";
+    ctx.font = "8px monospace";
+    ctx.textAlign = "center";
+    [0, 0.5, 1].forEach((f) => {
+      const v = tsMin + f * (tsMax - tsMin);
+      ctx.fillText(Math.round(v).toString(), mL + f * plotW, mT + plotH + 12);
+    });
+    ctx.font = "8px sans-serif";
+    ctx.fillText("Size (px)", mL + plotW / 2, mT + plotH + 24);
+
+    // Y-axis labels
+    ctx.font = "8px monospace";
+    ctx.textAlign = "right";
+    [0, 0.5, 1].forEach((f) => {
+      const v = satMin + f * (satMax - satMin);
+      ctx.fillText(v.toFixed(2), mL - 4, mT + (1 - f) * plotH + 3);
+    });
+    ctx.save();
+    ctx.translate(8, mT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.font = "8px sans-serif";
+    ctx.fillText("Sat", 0, 0);
+    ctx.restore();
+  }, [heatmap, markers, currentTrial, cols, rows, plotW, plotH, totalW, totalH, tsMin, tsMax, satMin, satMax, mL, mT, mB, mR]);
+
+  if (!heatmap) return null;
+  return <canvas ref={canvasRef} style={{ display: "block" }} />;
+}
+
+function simRdYlGn(p) {
+  const t = Math.max(0, Math.min(1, (p - 0.3) / 0.7));
+  const stops = [
+    [215, 48, 39], [244, 109, 67], [253, 174, 97], [254, 224, 139],
+    [255, 255, 191], [217, 239, 139], [166, 217, 106], [102, 189, 99],
+    [26, 152, 80], [0, 104, 55],
+  ];
+  const n = stops.length - 1;
+  const idx = t * n;
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, n);
+  const frac = idx - lo;
+  const r = Math.round(stops[lo][0] + (stops[hi][0] - stops[lo][0]) * frac);
+  const g = Math.round(stops[lo][1] + (stops[hi][1] - stops[lo][1]) * frac);
+  const b = Math.round(stops[lo][2] + (stops[hi][2] - stops[lo][2]) * frac);
+  return `rgb(${r},${g},${b})`;
 }
 
 export default PlayTest;

@@ -34,13 +34,19 @@ def get_custom_models(db: Session) -> list:
     return json.loads(setting.value)
 
 
-def save_custom_model(db: Session, name: str, base: float, coefficient: float, exponent: float) -> dict:
+def save_custom_model(
+    db: Session, name: str,
+    base: float, coefficient: float, exponent: float,
+    size_scale: float = 400.0, sat_scale: float = 1.0,
+) -> dict:
     models = get_custom_models(db)
     model = {
         "name": name,
         "base": base,
         "coefficient": coefficient,
         "exponent": exponent,
+        "size_scale": size_scale,
+        "sat_scale": sat_scale,
     }
     # Replace if exists, otherwise append
     existing_idx = next((i for i, m in enumerate(models) if m["name"] == name), None)

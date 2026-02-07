@@ -3,6 +3,14 @@ import "../css/ModelExplorer.css";
 
 const API = "http://localhost:8000/api/settings";
 
+/** Parse a number input value, returning `fallback` only when the field is
+ *  empty or not a valid number.  Crucially, 0 is preserved (unlike `|| fb`). */
+function parseNum(raw, fallback) {
+  if (raw === "" || raw == null) return fallback;
+  const n = Number(raw);
+  return isNaN(n) ? fallback : n;
+}
+
 function ModelExplorer() {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState("");
@@ -11,7 +19,7 @@ function ModelExplorer() {
   const [heatmap, setHeatmap] = useState(null);
   const [compareHeatmap, setCompareHeatmap] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [steps, setSteps] = useState(20);
+  const [steps, setSteps] = useState(80);
 
   // Bounds controls
   const [bounds, setBounds] = useState({
@@ -21,17 +29,27 @@ function ModelExplorer() {
     max_saturation: 1,
   });
 
-  // Load available models
-  useEffect(() => {
+  // Load available models (built-in + saved custom)
+  const refreshModels = useCallback(() => {
     fetch(`${API}/simulation-models`)
       .then((r) => r.json())
       .then((data) => {
         setModels(data);
-        if (data.length > 0) setSelectedModel(data[0].name);
-        if (data.length > 1) setCompareModel(data[1].name);
+        setSelectedModel((prev) => {
+          if (prev && data.some((m) => m.name === prev)) return prev;
+          return data.length > 0 ? data[0].name : "";
+        });
+        setCompareModel((prev) => {
+          if (prev && data.some((m) => m.name === prev)) return prev;
+          return data.length > 1 ? data[1].name : "";
+        });
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshModels();
+  }, [refreshModels]);
 
   const boundsQuery = `&min_triangle_size=${bounds.min_triangle_size}&max_triangle_size=${bounds.max_triangle_size}&min_saturation=${bounds.min_saturation}&max_saturation=${bounds.max_saturation}`;
 
@@ -106,10 +124,10 @@ function ModelExplorer() {
           <input
             type="number"
             min={2}
-            max={50}
+            max={200}
             value={steps}
             onChange={(e) => {
-              const v = Math.max(2, Math.min(50, Number(e.target.value) || 2));
+              const v = Math.max(2, Math.min(200, parseNum(e.target.value, 2)));
               setSteps(v);
             }}
           />
@@ -118,12 +136,12 @@ function ModelExplorer() {
           <label>Min size (px)</label>
           <input
             type="number"
-            min={1}
+            min={0}
             value={bounds.min_triangle_size}
             onChange={(e) =>
               setBounds((b) => ({
                 ...b,
-                min_triangle_size: Number(e.target.value) || 0,
+                min_triangle_size: parseNum(e.target.value, b.min_triangle_size),
               }))
             }
           />
@@ -137,7 +155,7 @@ function ModelExplorer() {
             onChange={(e) =>
               setBounds((b) => ({
                 ...b,
-                max_triangle_size: Number(e.target.value) || 400,
+                max_triangle_size: parseNum(e.target.value, b.max_triangle_size),
               }))
             }
           />
@@ -148,12 +166,11 @@ function ModelExplorer() {
             type="number"
             step="0.01"
             min={0}
-            max={1}
             value={bounds.min_saturation}
             onChange={(e) =>
               setBounds((b) => ({
                 ...b,
-                min_saturation: Number(e.target.value) || 0,
+                min_saturation: parseNum(e.target.value, b.min_saturation),
               }))
             }
           />
@@ -164,12 +181,11 @@ function ModelExplorer() {
             type="number"
             step="0.01"
             min={0}
-            max={1}
             value={bounds.max_saturation}
             onChange={(e) =>
               setBounds((b) => ({
                 ...b,
-                max_saturation: Number(e.target.value) || 1,
+                max_saturation: parseNum(e.target.value, b.max_saturation),
               }))
             }
           />
@@ -225,7 +241,7 @@ function ModelExplorer() {
           />
         )}
         {tab === "custom" && (
-          <CustomModelTab bounds={bounds} steps={steps} />
+          <CustomModelTab bounds={bounds} steps={steps} onModelsChanged={refreshModels} />
         )}
       </div>
     </div>
@@ -246,8 +262,12 @@ function FormulaTab({ model, heatmap, loading }) {
           <code className="formula-code">{model.description}</code>
         </div>
         <p className="formula-note">
-          Where <code>ts</code> is the triangle size and <code>sat</code> is the
-          saturation, both scaled to [0, 1] relative to the configured bounds.
+          Where <code>ts</code> is the triangle size in pixels and{" "}
+          <code>sat</code> is the saturation (absolute values).
+          The model uses per-axis scaling ({" "}
+          <code>size_scale={model.size_scale ?? "?"}</code>,{" "}
+          <code>sat_scale={model.sat_scale ?? "?"}</code>) so
+          probabilities stay the same regardless of viewing bounds.
         </p>
       </div>
 
@@ -489,10 +509,12 @@ function CompareTab({
 /* ══════════════════════════════════════════════════════════
    Custom Model Tab – define your own formula
    ══════════════════════════════════════════════════════════ */
-function CustomModelTab({ bounds, steps }) {
+function CustomModelTab({ bounds, steps, onModelsChanged }) {
   const [base, setBase] = useState(0.6);
   const [coefficient, setCoefficient] = useState(0.39);
   const [exponent, setExponent] = useState(0.5);
+  const [sizeScale, setSizeScale] = useState(400);
+  const [satScale, setSatScale] = useState(1);
   const [customHeatmap, setCustomHeatmap] = useState(null);
   const [customLoading, setCustomLoading] = useState(false);
   const [modelName, setModelName] = useState("");
@@ -509,6 +531,8 @@ function CustomModelTab({ bounds, steps }) {
           base,
           coefficient,
           exponent,
+          size_scale: sizeScale,
+          sat_scale: satScale,
           steps,
           ...bounds,
         }),
@@ -520,7 +544,7 @@ function CustomModelTab({ bounds, steps }) {
     } finally {
       setCustomLoading(false);
     }
-  }, [base, coefficient, exponent, steps, bounds]);
+  }, [base, coefficient, exponent, sizeScale, satScale, steps, bounds]);
 
   useEffect(() => {
     fetchCustom();
@@ -548,14 +572,17 @@ function CustomModelTab({ bounds, steps }) {
           base,
           coefficient,
           exponent,
+          size_scale: sizeScale,
+          sat_scale: satScale,
         }),
       });
       if (r.ok) {
         setSaveStatus("Model saved successfully!");
         setModelName("");
-        // Reload saved models
+        // Reload saved models + parent dropdown
         const models = await fetch(`${API}/custom-models`).then((r) => r.json());
         setSavedModels(models);
+        onModelsChanged?.();
         setTimeout(() => setSaveStatus(""), 3000);
       } else {
         const err = await r.json();
@@ -570,6 +597,8 @@ function CustomModelTab({ bounds, steps }) {
     setBase(model.base);
     setCoefficient(model.coefficient);
     setExponent(model.exponent);
+    setSizeScale(model.size_scale ?? 400);
+    setSatScale(model.sat_scale ?? 1);
     setSaveStatus(`Loaded "${model.name}"`);
     setTimeout(() => setSaveStatus(""), 3000);
   };
@@ -581,20 +610,26 @@ function CustomModelTab({ bounds, steps }) {
       });
       if (r.ok) {
         setSavedModels((prev) => prev.filter((m) => m.name !== name));
+        onModelsChanged?.();
         setSaveStatus(`Deleted "${name}"`);
         setTimeout(() => setSaveStatus(""), 3000);
       }
     } catch {}
   };
 
-  const desc = `${base} + ${coefficient} × ((ts² + sat²) / 2)^${exponent}`;
+  const desc = `${base} + ${coefficient} × (((ts/${sizeScale})² + (sat/${satScale})²) / 2)^${exponent}`;
 
   return (
     <div className="custom-model-tab">
       <div className="formula-card">
         <h3>Define Custom Model</h3>
         <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
-          Formula: <code>P = base + coefficient × ((ts² + sat²) / 2)<sup>exponent</sup></code>
+          Formula: <code>P = base + coefficient × (((ts/size_scale)² + (sat/sat_scale)²) / 2)<sup>exponent</sup></code>
+        </p>
+        <p className="formula-note" style={{ marginBottom: "0.75rem", fontSize: "0.72rem" }}>
+          <code>size_scale</code> and <code>sat_scale</code> control the
+          reference value for each axis. The model uses absolute values so
+          changing the viewing bounds won't change the probabilities.
         </p>
         <div className="custom-params">
           <div className="custom-param">
@@ -603,7 +638,7 @@ function CustomModelTab({ bounds, steps }) {
               type="number"
               step="0.01"
               value={base}
-              onChange={(e) => setBase(Number(e.target.value) || 0)}
+              onChange={(e) => setBase(parseNum(e.target.value, base))}
             />
           </div>
           <div className="custom-param">
@@ -612,7 +647,7 @@ function CustomModelTab({ bounds, steps }) {
               type="number"
               step="0.01"
               value={coefficient}
-              onChange={(e) => setCoefficient(Number(e.target.value) || 0)}
+              onChange={(e) => setCoefficient(parseNum(e.target.value, coefficient))}
             />
           </div>
           <div className="custom-param">
@@ -621,7 +656,27 @@ function CustomModelTab({ bounds, steps }) {
               type="number"
               step="0.1"
               value={exponent}
-              onChange={(e) => setExponent(Number(e.target.value) || 0.5)}
+              onChange={(e) => setExponent(parseNum(e.target.value, exponent))}
+            />
+          </div>
+          <div className="custom-param">
+            <label>Size scale (px)</label>
+            <input
+              type="number"
+              step="10"
+              min="1"
+              value={sizeScale}
+              onChange={(e) => setSizeScale(parseNum(e.target.value, sizeScale))}
+            />
+          </div>
+          <div className="custom-param">
+            <label>Sat scale</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0.01"
+              value={satScale}
+              onChange={(e) => setSatScale(parseNum(e.target.value, satScale))}
             />
           </div>
         </div>
@@ -695,7 +750,7 @@ function CustomModelTab({ bounds, steps }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>{model.name}</div>
                   <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                    {model.base} + {model.coefficient} × ((ts² + sat²) / 2)^{model.exponent}
+                    {model.base} + {model.coefficient} × (((ts/{model.size_scale ?? 400})² + (sat/{model.sat_scale ?? 1})²) / 2)^{model.exponent}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.25rem" }}>
