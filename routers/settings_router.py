@@ -28,30 +28,60 @@ def put_settings(settings: PretestSettings, db: Session = Depends(get_db)):
 
 
 @router.get("/simulation-models")
-def list_simulation_models():
-    """Return available ground-truth simulation models."""
-    return [
+def list_simulation_models(db: Session = Depends(get_db)):
+    """Return available ground-truth simulation models, including saved custom models."""
+    models = [
         {"name": name, "label": entry["label"], "description": entry["description"]}
         for name, entry in SIMULATION_MODELS.items()
     ]
+    # Add saved custom models
+    custom_models = get_custom_models(db)
+    for cm in custom_models:
+        desc = f"{cm['base']} + {cm['coefficient']} * ((ts² + sat²) / 2)^{cm['exponent']}"
+        models.append({
+            "name": f"custom:{cm['name']}",
+            "label": f"Custom: {cm['name']}",
+            "description": desc,
+        })
+    return models
 
 
 @router.get("/simulation-models/{model_name}/heatmap")
 def get_model_heatmap(
     model_name: str,
-    steps: int = Query(default=20, ge=2, le=100),
+    steps: int = Query(default=50, ge=2, le=100),
     min_triangle_size: float = Query(default=10),
     max_triangle_size: float = Query(default=400),
     min_saturation: float = Query(default=0),
     max_saturation: float = Query(default=1),
+    db: Session = Depends(get_db),
 ):
     """Return a probability grid for the given model over the parameter space."""
-    entry = SIMULATION_MODELS.get(model_name)
-    if entry is None:
-        raise HTTPException(status_code=404, detail=f"Unknown model: {model_name}")
-
-    prob_fn = entry["probability_fn"]
     bounds = ((min_triangle_size, max_triangle_size), (min_saturation, max_saturation))
+
+    # Check if it's a custom model
+    if model_name.startswith("custom:"):
+        custom_name = model_name[7:]  # Remove "custom:" prefix
+        custom_models = get_custom_models(db)
+        custom_model = next((m for m in custom_models if m["name"] == custom_name), None)
+        if custom_model is None:
+            raise HTTPException(status_code=404, detail=f"Unknown custom model: {custom_name}")
+
+        # Use custom model parameters
+        base = custom_model["base"]
+        coefficient = custom_model["coefficient"]
+        exponent = custom_model["exponent"]
+        prob_fn = lambda ts, sat, bounds: _custom_probability(ts, sat, bounds, base, coefficient, exponent)
+        label = f"Custom: {custom_name}"
+        description = f"{base} + {coefficient} * ((ts² + sat²) / 2)^{exponent}"
+    else:
+        # Built-in model
+        entry = SIMULATION_MODELS.get(model_name)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"Unknown model: {model_name}")
+        prob_fn = entry["probability_fn"]
+        label = entry["label"]
+        description = entry["description"]
 
     ts_range = max_triangle_size - min_triangle_size
     sat_range = max_saturation - min_saturation
@@ -75,8 +105,8 @@ def get_model_heatmap(
 
     return {
         "model_name": model_name,
-        "label": entry["label"],
-        "description": entry["description"],
+        "label": label,
+        "description": description,
         "triangle_sizes": triangle_sizes,
         "saturations": saturations,
         "grid": grid,
@@ -87,7 +117,7 @@ class CustomModelRequest(BaseModel):
     base: float = 0.6
     coefficient: float = 0.39
     exponent: float = 0.5
-    steps: int = 20
+    steps: int = 50
     min_triangle_size: float = 10
     max_triangle_size: float = 400
     min_saturation: float = 0

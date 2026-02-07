@@ -11,7 +11,7 @@ function ModelExplorer() {
   const [heatmap, setHeatmap] = useState(null);
   const [compareHeatmap, setCompareHeatmap] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [steps, setSteps] = useState(20);
+  const [steps, setSteps] = useState(50);
 
   // Bounds controls
   const [bounds, setBounds] = useState({
@@ -22,16 +22,20 @@ function ModelExplorer() {
   });
 
   // Load available models
-  useEffect(() => {
+  const loadModels = useCallback(() => {
     fetch(`${API}/simulation-models`)
       .then((r) => r.json())
       .then((data) => {
         setModels(data);
-        if (data.length > 0) setSelectedModel(data[0].name);
-        if (data.length > 1) setCompareModel(data[1].name);
+        if (data.length > 0 && !selectedModel) setSelectedModel(data[0].name);
+        if (data.length > 1 && !compareModel) setCompareModel(data[1].name);
       })
       .catch(() => {});
-  }, []);
+  }, [selectedModel, compareModel]);
+
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
 
   const boundsQuery = `&min_triangle_size=${bounds.min_triangle_size}&max_triangle_size=${bounds.max_triangle_size}&min_saturation=${bounds.min_saturation}&max_saturation=${bounds.max_saturation}`;
 
@@ -100,19 +104,6 @@ function ModelExplorer() {
               </option>
             ))}
           </select>
-        </div>
-        <div className="model-selector-group">
-          <label>Grid resolution</label>
-          <input
-            type="number"
-            min={2}
-            max={50}
-            value={steps}
-            onChange={(e) => {
-              const v = Math.max(2, Math.min(50, Number(e.target.value) || 2));
-              setSteps(v);
-            }}
-          />
         </div>
         <div className="model-selector-group">
           <label>Min size (px)</label>
@@ -225,7 +216,7 @@ function ModelExplorer() {
           />
         )}
         {tab === "custom" && (
-          <CustomModelTab bounds={bounds} steps={steps} />
+          <CustomModelTab bounds={bounds} steps={steps} onModelSaved={loadModels} />
         )}
       </div>
     </div>
@@ -489,7 +480,7 @@ function CompareTab({
 /* ══════════════════════════════════════════════════════════
    Custom Model Tab – define your own formula
    ══════════════════════════════════════════════════════════ */
-function CustomModelTab({ bounds, steps }) {
+function CustomModelTab({ bounds, steps, onModelSaved }) {
   const [base, setBase] = useState(0.6);
   const [coefficient, setCoefficient] = useState(0.39);
   const [exponent, setExponent] = useState(0.5);
@@ -556,6 +547,8 @@ function CustomModelTab({ bounds, steps }) {
         // Reload saved models
         const models = await fetch(`${API}/custom-models`).then((r) => r.json());
         setSavedModels(models);
+        // Notify parent to reload all models
+        if (onModelSaved) onModelSaved();
         setTimeout(() => setSaveStatus(""), 3000);
       } else {
         const err = await r.json();
@@ -582,6 +575,8 @@ function CustomModelTab({ bounds, steps }) {
       if (r.ok) {
         setSavedModels((prev) => prev.filter((m) => m.name !== name));
         setSaveStatus(`Deleted "${name}"`);
+        // Notify parent to reload all models
+        if (onModelSaved) onModelSaved();
         setTimeout(() => setSaveStatus(""), 3000);
       }
     } catch {}
