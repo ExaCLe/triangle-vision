@@ -60,3 +60,43 @@ def test_put_and_get_roundtrip(client: TestClient):
     assert data["display"]["eink"]["flash_color"] == "black"
     assert data["display"]["eink"]["flash_duration_ms"] == 120
     assert data["display"]["flip"]["horizontal"] is True
+
+
+def test_list_simulation_models(client: TestClient):
+    """GET /api/settings/simulation-models should return available models."""
+    response = client.get("/api/settings/simulation-models")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 2
+    names = [m["name"] for m in data]
+    assert "default" in names
+    assert "model2" in names
+    for m in data:
+        assert "label" in m
+        assert "description" in m
+
+
+def test_get_model_heatmap(client: TestClient):
+    """GET /api/settings/simulation-models/{name}/heatmap returns a probability grid."""
+    response = client.get(
+        "/api/settings/simulation-models/default/heatmap",
+        params={"steps": 5},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_name"] == "default"
+    assert len(data["triangle_sizes"]) == 5
+    assert len(data["saturations"]) == 5
+    assert len(data["grid"]) == 5
+    assert len(data["grid"][0]) == 5
+    # Probabilities should be in [0, 1]
+    for row in data["grid"]:
+        for p in row:
+            assert 0 <= p <= 1
+
+
+def test_get_model_heatmap_unknown(client: TestClient):
+    """GET /api/settings/simulation-models/{unknown}/heatmap returns 404."""
+    response = client.get("/api/settings/simulation-models/nonexistent/heatmap")
+    assert response.status_code == 404

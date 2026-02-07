@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import "../css/Navbar.css";
 import { useTheme } from "../context/ThemeContext";
 
-function Navbar({ onCreateClick }) {
+function Navbar({ onCreateClick, simulationEnabled }) {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
@@ -46,6 +46,18 @@ function Navbar({ onCreateClick }) {
         >
           Custom
         </Link>
+        {simulationEnabled ? (
+          <Link
+            to="/model-explorer"
+            className={`nav-link ${isActive("/model-explorer") ? "active" : ""}`}
+          >
+            Models
+          </Link>
+        ) : (
+          <span className="nav-link disabled" title="Enable simulation mode in Settings to explore models">
+            Models
+          </span>
+        )}
         <Link
           to="/settings"
           className={`nav-link ${isActive("/settings") ? "active" : ""}`}
