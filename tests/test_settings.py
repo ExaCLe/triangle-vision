@@ -100,3 +100,18 @@ def test_get_model_heatmap_unknown(client: TestClient):
     """GET /api/settings/simulation-models/{unknown}/heatmap returns 404."""
     response = client.get("/api/settings/simulation-models/nonexistent/heatmap")
     assert response.status_code == 404
+
+
+def test_custom_model_heatmap(client: TestClient):
+    """POST /api/settings/simulation-models/custom/heatmap returns a grid."""
+    response = client.post(
+        "/api/settings/simulation-models/custom/heatmap",
+        json={"base": 0.5, "coefficient": 0.4, "exponent": 0.5, "steps": 5},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_name"] == "custom"
+    assert len(data["grid"]) == 5
+    for row in data["grid"]:
+        for p in row:
+            assert 0 <= p <= 1

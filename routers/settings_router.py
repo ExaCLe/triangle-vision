@@ -1,4 +1,7 @@
+import math
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from db.database import get_db
 from schemas.settings import PretestSettings
@@ -68,6 +71,68 @@ def get_model_heatmap(
         "model_name": model_name,
         "label": entry["label"],
         "description": entry["description"],
+        "triangle_sizes": triangle_sizes,
+        "saturations": saturations,
+        "grid": grid,
+    }
+
+
+class CustomModelRequest(BaseModel):
+    base: float = 0.6
+    coefficient: float = 0.39
+    exponent: float = 0.5
+    steps: int = 20
+    min_triangle_size: float = 10
+    max_triangle_size: float = 400
+    min_saturation: float = 0
+    max_saturation: float = 1
+
+
+def _custom_probability(ts, sat, bounds, base, coefficient, exponent):
+    """Evaluate base + coefficient * ((ts_scaled^2 + sat_scaled^2) / 2)^exponent."""
+    ts_range = bounds[0][1] - bounds[0][0]
+    sat_range = bounds[1][1] - bounds[1][0]
+    ts_s = (ts - bounds[0][0]) / ts_range if ts_range else 0
+    sat_s = (sat - bounds[1][0]) / sat_range if sat_range else 0
+    raw = (ts_s ** 2 + sat_s ** 2) / 2.0
+    return min(1.0, max(0.0, base + coefficient * math.pow(raw, exponent)))
+
+
+@router.post("/simulation-models/custom/heatmap")
+def custom_model_heatmap(req: CustomModelRequest):
+    """Compute a heatmap for a user-defined model formula."""
+    steps = max(2, min(100, req.steps))
+    bounds = (
+        (req.min_triangle_size, req.max_triangle_size),
+        (req.min_saturation, req.max_saturation),
+    )
+    ts_range = req.max_triangle_size - req.min_triangle_size
+    sat_range = req.max_saturation - req.min_saturation
+
+    triangle_sizes = [
+        round(req.min_triangle_size + ts_range * i / (steps - 1), 2)
+        for i in range(steps)
+    ]
+    saturations = [
+        round(req.min_saturation + sat_range * i / (steps - 1), 4)
+        for i in range(steps)
+    ]
+
+    grid = []
+    for sat in saturations:
+        row = []
+        for ts in triangle_sizes:
+            p = _custom_probability(
+                ts, sat, bounds, req.base, req.coefficient, req.exponent
+            )
+            row.append(round(p, 4))
+        grid.append(row)
+
+    desc = f"{req.base} + {req.coefficient} * ((ts² + sat²) / 2)^{req.exponent}"
+    return {
+        "model_name": "custom",
+        "label": f"Custom (base {req.base})",
+        "description": desc,
         "triangle_sizes": triangle_sizes,
         "saturations": saturations,
         "grid": grid,
