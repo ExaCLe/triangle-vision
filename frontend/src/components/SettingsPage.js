@@ -7,7 +7,7 @@ const parseNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-function SettingsPage() {
+function SettingsPage({ onSimulationChange }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +41,9 @@ function SettingsPage() {
       const data = await response.json();
       setSettings(normalizePretestSettings(data));
       setMessage({ type: "success", text: "Settings saved successfully" });
+      if (onSimulationChange) {
+        onSimulationChange(!!data?.simulation?.enabled);
+      }
     } catch {
       setMessage({ type: "error", text: "Failed to save settings" });
     } finally {

@@ -24,7 +24,8 @@ from algorithm_to_find_combinations.algorithm import (
     selection_probability,
 )
 from crud.algorithm_state import sync_algorithm_state
-from algorithm_to_find_combinations.ground_truth import simulate_trial
+from algorithm_to_find_combinations.ground_truth import simulate_trial, model_probability
+from routers.settings_router import _resolve_model
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -824,16 +825,16 @@ def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get
             phase = "main"
 
         # ---- sample ground truth -------------------------------------------
-        bounds = (
-            (global_limits.min_triangle_size, global_limits.max_triangle_size),
-            (global_limits.min_saturation, global_limits.max_saturation),
-        )
-        success = simulate_trial(
-            req.model_name,
+        entry = _resolve_model(req.model_name, db)
+        if entry is None:
+            raise HTTPException(status_code=422, detail=f"Unknown model: {req.model_name}")
+        prob = model_probability(
             trial_data["triangle_size"],
             trial_data["saturation"],
-            bounds,
+            entry["base"], entry["coefficient"], entry["exponent"],
+            entry["size_scale"], entry["sat_scale"],
         )
+        success = random.random() < prob
         success_int = 1 if success else 0
 
         # ---- submit result (reuse existing logic) --------------------------
@@ -850,6 +851,7 @@ def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get
             "saturation": trial_data["saturation"],
             "orientation": trial_data["orientation"],
             "success": success_int,
+            "probability": round(prob, 4),
             "phase": phase,
         })
 
