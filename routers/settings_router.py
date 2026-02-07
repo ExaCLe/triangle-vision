@@ -5,7 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from db.database import get_db
 from schemas.settings import PretestSettings
-from crud.settings import get_pretest_settings, update_pretest_settings
+from crud.settings import (
+    get_pretest_settings,
+    update_pretest_settings,
+    get_custom_models,
+    save_custom_model,
+    delete_custom_model,
+)
 from algorithm_to_find_combinations.ground_truth import SIMULATION_MODELS
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -137,3 +143,34 @@ def custom_model_heatmap(req: CustomModelRequest):
         "saturations": saturations,
         "grid": grid,
     }
+
+
+class SaveCustomModelRequest(BaseModel):
+    name: str
+    base: float = 0.6
+    coefficient: float = 0.39
+    exponent: float = 0.5
+
+
+@router.get("/custom-models")
+def list_custom_models(db: Session = Depends(get_db)):
+    """Return saved custom models."""
+    return get_custom_models(db)
+
+
+@router.post("/custom-models")
+def create_custom_model(req: SaveCustomModelRequest, db: Session = Depends(get_db)):
+    """Save a custom model."""
+    if not req.name or not req.name.strip():
+        raise HTTPException(status_code=400, detail="Model name is required")
+    model = save_custom_model(db, req.name.strip(), req.base, req.coefficient, req.exponent)
+    return model
+
+
+@router.delete("/custom-models/{name}")
+def remove_custom_model(name: str, db: Session = Depends(get_db)):
+    """Delete a saved custom model."""
+    success = delete_custom_model(db, name)
+    if not success:
+        raise HTTPException(status_code=404, detail="Model not found")
+    return {"success": True}

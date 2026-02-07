@@ -443,7 +443,7 @@
   border-color: var(--accent);
 }
 
-.tg-circle {
+.tg-box {
   display: flex;
   align-items: center;
   justify-content: center;

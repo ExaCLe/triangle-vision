@@ -310,9 +310,8 @@ function TrianglePreviewTab({ heatmap, loading }) {
   return (
     <div className="grid-tab">
       <p className="grid-description">
-        Each cell renders an actual triangle at the given size. The background
-        circle color represents the saturation level. The percentage shows the
-        model's predicted success probability.
+        Each cell renders an actual triangle at the given size on a white background.
+        The percentage shows the model's predicted success probability.
       </p>
       <div className="triangle-grid-wrapper">
         {/* Column headers – triangle sizes */}
@@ -340,15 +339,7 @@ function TrianglePreviewTab({ heatmap, loading }) {
                 const ts = tsAll[ti];
                 const sat = satAll[si];
                 const renderSize = Math.max(6, (ts / maxTs) * maxRender);
-                const circleDia = Math.max(20, (ts / maxTs) * circleMax);
-                // Circle saturation: sat 0 = gray, sat 1 = full red (#c85028)
-                const hue = 14;
-                const satPercent = Math.round(sat * 100);
-                const lightness = Math.round(90 - sat * 45);
-                const circleColor = `hsl(${hue}, ${satPercent}%, ${lightness}%)`;
-                // Triangle color = darker version
-                const triLightness = Math.round(50 - sat * 25);
-                const triColor = `hsl(${hue}, ${satPercent}%, ${triLightness}%)`;
+                const boxSize = Math.max(24, (ts / maxTs) * circleMax);
 
                 return (
                   <div
@@ -357,20 +348,17 @@ function TrianglePreviewTab({ heatmap, loading }) {
                     title={`Size ${Math.round(ts)}px, Sat ${sat.toFixed(2)}: ${(p * 100).toFixed(1)}%`}
                   >
                     <div
-                      className="tg-circle"
+                      className="tg-box"
                       style={{
-                        width: circleDia,
-                        height: circleDia,
-                        backgroundColor: circleColor,
-                        borderRadius: "50%",
+                        width: boxSize,
+                        height: boxSize,
+                        backgroundColor: "white",
+                        border: "1px solid #ccc",
                       }}
                     >
-                      <CssTriangle size={renderSize} color={triColor} />
+                      <CssTriangle size={renderSize} color="black" />
                     </div>
-                    <span
-                      className="tg-prob"
-                      style={{ color: probTextColor(p) }}
-                    >
+                    <span className="tg-prob" style={{ color: "black" }}>
                       {(p * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -507,6 +495,9 @@ function CustomModelTab({ bounds, steps }) {
   const [exponent, setExponent] = useState(0.5);
   const [customHeatmap, setCustomHeatmap] = useState(null);
   const [customLoading, setCustomLoading] = useState(false);
+  const [modelName, setModelName] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
+  const [savedModels, setSavedModels] = useState([]);
 
   const fetchCustom = useCallback(async () => {
     setCustomLoading(true);
@@ -534,6 +525,67 @@ function CustomModelTab({ bounds, steps }) {
   useEffect(() => {
     fetchCustom();
   }, [fetchCustom]);
+
+  // Load saved models
+  useEffect(() => {
+    fetch(`${API}/custom-models`)
+      .then((r) => r.json())
+      .then((data) => setSavedModels(data))
+      .catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    if (!modelName.trim()) {
+      setSaveStatus("Please enter a model name");
+      return;
+    }
+    try {
+      const r = await fetch(`${API}/custom-models`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: modelName.trim(),
+          base,
+          coefficient,
+          exponent,
+        }),
+      });
+      if (r.ok) {
+        setSaveStatus("Model saved successfully!");
+        setModelName("");
+        // Reload saved models
+        const models = await fetch(`${API}/custom-models`).then((r) => r.json());
+        setSavedModels(models);
+        setTimeout(() => setSaveStatus(""), 3000);
+      } else {
+        const err = await r.json();
+        setSaveStatus(`Error: ${err.detail || "Failed to save"}`);
+      }
+    } catch {
+      setSaveStatus("Error: Failed to save model");
+    }
+  };
+
+  const handleLoad = (model) => {
+    setBase(model.base);
+    setCoefficient(model.coefficient);
+    setExponent(model.exponent);
+    setSaveStatus(`Loaded "${model.name}"`);
+    setTimeout(() => setSaveStatus(""), 3000);
+  };
+
+  const handleDelete = async (name) => {
+    try {
+      const r = await fetch(`${API}/custom-models/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      if (r.ok) {
+        setSavedModels((prev) => prev.filter((m) => m.name !== name));
+        setSaveStatus(`Deleted "${name}"`);
+        setTimeout(() => setSaveStatus(""), 3000);
+      }
+    } catch {}
+  };
 
   const desc = `${base} + ${coefficient} × ((ts² + sat²) / 2)^${exponent}`;
 
@@ -577,7 +629,109 @@ function CustomModelTab({ bounds, steps }) {
           <span className="formula-label">P(success) =</span>
           <code className="formula-code">{desc}</code>
         </div>
+
+        {/* Save section */}
+        <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-subtle)" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: "0.75rem", fontWeight: 500, color: "var(--text-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                Model Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., My Custom Model"
+                value={modelName}
+                onChange={(e) => setModelName(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid var(--card-border)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.85rem",
+                }}
+              />
+            </div>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: "0.5rem 1rem",
+                backgroundColor: "var(--accent)",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Save Model
+            </button>
+          </div>
+          {saveStatus && (
+            <p style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: saveStatus.includes("Error") ? "var(--error)" : "var(--success)" }}>
+              {saveStatus}
+            </p>
+          )}
+        </div>
       </div>
+
+      {savedModels.length > 0 && (
+        <div className="formula-card">
+          <h3>Saved Models</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {savedModels.map((model) => (
+              <div
+                key={model.name}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "0.5rem",
+                  backgroundColor: "var(--background)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>{model.name}</div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                    {model.base} + {model.coefficient} × ((ts² + sat²) / 2)^{model.exponent}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.25rem" }}>
+                  <button
+                    onClick={() => handleLoad(model)}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.75rem",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-sm)",
+                      backgroundColor: "var(--background)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDelete(model.name)}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.75rem",
+                      border: "1px solid var(--error)",
+                      borderRadius: "var(--radius-sm)",
+                      backgroundColor: "var(--background)",
+                      color: "var(--error)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {customLoading ? (
         <div className="loading-state">Computing…</div>
