@@ -466,6 +466,35 @@ function SettingsPage() {
         </div>
       </div>
 
+      <div className="settings-section">
+        <h3>Simulation Mode</h3>
+        <div className="settings-grid">
+          <div className="setting-field setting-toggle">
+            <div className="setting-toggle-row">
+              <label>Enable simulation bar in PlayTest</label>
+              <input
+                type="checkbox"
+                checked={settings.simulation?.enabled ?? false}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    simulation: {
+                      ...(settings.simulation ?? { enabled: false }),
+                      enabled: e.target.checked,
+                    },
+                  })
+                }
+              />
+            </div>
+            <span className="setting-help">
+              Shows a simulation toolbar during tests. Use hotkeys to run
+              automated trials with a ground-truth model (1 = one trial,
+              5 / 0 / ⇧0 for 5 / 10 / 50).
+            </span>
+          </div>
+        </div>
+      </div>
+
       {message && <p className={`settings-message ${message.type}`}>{message.text}</p>}
 
       <div className="settings-actions">

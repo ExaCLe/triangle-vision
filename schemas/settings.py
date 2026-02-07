@@ -44,6 +44,10 @@ class DisplaySettings(BaseModel):
     flip: DisplayFlipSettings = Field(default_factory=DisplayFlipSettings)
 
 
+class SimulationSettings(BaseModel):
+    enabled: bool = False
+
+
 class PretestSettings(BaseModel):
     lower_target: float = 0.40
     upper_target: float = 0.95
@@ -52,3 +56,4 @@ class PretestSettings(BaseModel):
     global_limits: PretestGlobalLimits = Field(default_factory=PretestGlobalLimits)
     debug: DebugSettings = Field(default_factory=DebugSettings)
     display: DisplaySettings = Field(default_factory=DisplaySettings)
+    simulation: SimulationSettings = Field(default_factory=SimulationSettings)

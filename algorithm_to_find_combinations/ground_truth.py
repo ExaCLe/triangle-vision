@@ -55,3 +55,33 @@ def get_scaled_radii(bounds):
     inner_radius = scale_radius(NORMALIZED_INNER_RADIUS, bounds[0])
     outer_radius = scale_radius(NORMALIZED_OUTER_RADIUS, bounds[0])
     return inner_radius, outer_radius
+
+
+# ---------------------------------------------------------------------------
+# Model registry – each entry maps a human-readable name to the probability
+# function that accepts (triangle_size, saturation, bounds) and returns a
+# probability in [0, 1].
+# To add a new model, define the probability function above and register it
+# in the dictionary below.
+# ---------------------------------------------------------------------------
+SIMULATION_MODELS = {
+    "default": {
+        "label": "Default (base 0.6)",
+        "description": "0.6 + 0.39 * sqrt((ts² + sat²) / 2)",
+        "probability_fn": ground_truth_probability,
+    },
+    "model2": {
+        "label": "Model 2 (base 0.5)",
+        "description": "0.5 + 0.39 * sqrt((ts² + sat²) / 2)",
+        "probability_fn": ground_truth_probability_model2,
+    },
+}
+
+
+def simulate_trial(model_name, triangle_size, saturation, bounds):
+    """Sample a boolean success using the named model."""
+    entry = SIMULATION_MODELS.get(model_name)
+    if entry is None:
+        raise ValueError(f"Unknown simulation model: {model_name}")
+    probability = entry["probability_fn"](triangle_size, saturation, bounds)
+    return random.random() < probability

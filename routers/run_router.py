@@ -24,6 +24,7 @@ from algorithm_to_find_combinations.algorithm import (
     selection_probability,
 )
 from crud.algorithm_state import sync_algorithm_state
+from algorithm_to_find_combinations.ground_truth import simulate_trial
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -745,3 +746,123 @@ def get_runs_for_test(test_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return runs
+
+
+class SimulateRequest(BaseModel):
+    model_name: str = "default"
+    count: int = 1
+
+
+@router.post("/{run_id}/simulate")
+def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get_db)):
+    """Run *count* simulated trials using a ground-truth model.
+
+    Each iteration mirrors the normal next→result flow:
+    1. Fetch the next trial (pretest or main).
+    2. Sample success/failure from the chosen ground-truth model.
+    3. Submit the result exactly as a human press would.
+
+    Returns a list of per-trial summaries so the frontend can replay them.
+    """
+    if req.count < 1 or req.count > 200:
+        raise HTTPException(status_code=422, detail="count must be between 1 and 200")
+
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    test = db.query(Test).filter(Test.id == run.test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    settings = get_pretest_settings(db)
+    global_limits = settings.global_limits
+
+    results = []
+    for _ in range(req.count):
+        # Re-load run each iteration so status transitions are visible.
+        db.refresh(run)
+        if run.status not in ("pretest", "main"):
+            break
+
+        # ---- get next trial ------------------------------------------------
+        if run.status == "pretest":
+            pretest_state = _load_pretest_state(run)
+            if pretest_state is None or pretest_state.is_complete:
+                break
+            trial = get_pretest_trial(pretest_state)
+            trial_data = {
+                "triangle_size": trial["triangle_size"],
+                "saturation": trial["saturation"],
+                "orientation": trial["orientation"],
+            }
+            phase = "pretest"
+        else:
+            size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
+            db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()
+            rectangles = []
+            for rect in db_rectangles:
+                rectangles.append({
+                    "bounds": {
+                        "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
+                        "saturation": (rect.min_saturation, rect.max_saturation),
+                    },
+                    "area": rect.area,
+                    "true_samples": rect.true_samples,
+                    "false_samples": rect.false_samples,
+                })
+            state = AlgorithmState(size_bounds, sat_bounds, rectangles if rectangles else None)
+            combination, selected_rect = get_next_combination(state)
+            if not combination:
+                break
+            sync_algorithm_state(state, run.test_id, db)
+            trial_data = {
+                "triangle_size": combination["triangle_size"],
+                "saturation": combination["saturation"],
+                "orientation": random.choice(ORIENTATIONS),
+            }
+            phase = "main"
+
+        # ---- sample ground truth -------------------------------------------
+        bounds = (
+            (global_limits.min_triangle_size, global_limits.max_triangle_size),
+            (global_limits.min_saturation, global_limits.max_saturation),
+        )
+        success = simulate_trial(
+            req.model_name,
+            trial_data["triangle_size"],
+            trial_data["saturation"],
+            bounds,
+        )
+        success_int = 1 if success else 0
+
+        # ---- submit result (reuse existing logic) --------------------------
+        result_payload = RunTrialResult(
+            triangle_size=trial_data["triangle_size"],
+            saturation=trial_data["saturation"],
+            orientation=trial_data["orientation"],
+            success=success_int,
+        )
+        submit_run_result(run_id, result_payload, db)
+
+        results.append({
+            "triangle_size": trial_data["triangle_size"],
+            "saturation": trial_data["saturation"],
+            "orientation": trial_data["orientation"],
+            "success": success_int,
+            "phase": phase,
+        })
+
+    total_samples = (
+        db.query(TestCombination)
+        .filter(TestCombination.run_id == run_id)
+        .count()
+    )
+    db.refresh(run)
+
+    return {
+        "trials": results,
+        "total_simulated": len(results),
+        "run_status": run.status,
+        "total_samples": total_samples,
+    }

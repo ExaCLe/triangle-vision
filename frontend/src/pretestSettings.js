@@ -18,6 +18,9 @@ export const DEFAULT_PRETEST_SETTINGS = {
   debug: {
     enabled: true,
   },
+  simulation: {
+    enabled: false,
+  },
   display: {
     masking: {
       duration_ms: 0,
@@ -54,6 +57,10 @@ export const normalizePretestSettings = (value) => {
     debug: {
       ...DEFAULT_PRETEST_SETTINGS.debug,
       ...(data.debug ?? {}),
+    },
+    simulation: {
+      ...DEFAULT_PRETEST_SETTINGS.simulation,
+      ...(data.simulation ?? {}),
     },
     display: {
       ...DEFAULT_PRETEST_SETTINGS.display,
