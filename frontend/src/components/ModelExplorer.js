@@ -59,8 +59,9 @@ function ModelExplorer() {
     setLoading(true);
     try {
       const r = await fetch(
-        `${API}/simulation-models/${selectedModel}/heatmap?steps=${steps}${boundsQuery}`
+        `${API}/simulation-models/${encodeURIComponent(selectedModel)}/heatmap?steps=${steps}${boundsQuery}`
       );
+      if (!r.ok) { setHeatmap(null); return; }
       const data = await r.json();
       setHeatmap(data);
     } catch {
@@ -79,8 +80,9 @@ function ModelExplorer() {
     if (!compareModel || tab !== "compare") return;
     try {
       const r = await fetch(
-        `${API}/simulation-models/${compareModel}/heatmap?steps=${steps}${boundsQuery}`
+        `${API}/simulation-models/${encodeURIComponent(compareModel)}/heatmap?steps=${steps}${boundsQuery}`
       );
+      if (!r.ok) { setCompareHeatmap(null); return; }
       const data = await r.json();
       setCompareHeatmap(data);
     } catch {
@@ -811,17 +813,18 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
    ══════════════════════════════════════════════════════════ */
 function HeatmapCanvas({ heatmap }) {
   const canvasRef = useRef(null);
-  const cols = heatmap.triangle_sizes.length;
-  const rows = heatmap.saturations.length;
+  const valid = !!(heatmap?.triangle_sizes && heatmap?.saturations && heatmap?.grid);
+  const cols = valid ? heatmap.triangle_sizes.length : 0;
+  const rows = valid ? heatmap.saturations.length : 0;
   const mLeft = 60, mBottom = 50, mTop = 14, mRight = 60;
-  const plotW = Math.min(560, cols * 28);
-  const plotH = Math.min(440, rows * 28);
+  const plotW = Math.min(560, Math.max(1, cols) * 28);
+  const plotH = Math.min(440, Math.max(1, rows) * 28);
   const totalW = plotW + mLeft + mRight;
   const totalH = plotH + mTop + mBottom;
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !valid) return;
     const margin = { left: mLeft, bottom: mBottom, top: mTop, right: mRight };
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
@@ -918,8 +921,9 @@ function HeatmapCanvas({ heatmap }) {
       const y = margin.top + (1 - frac) * barH + 3;
       ctx.fillText(v.toFixed(2), barX + barW + 4, y);
     });
-  }, [heatmap, cols, rows, plotW, plotH, totalW, totalH, mLeft, mTop, mRight, mBottom]);
+  }, [heatmap, valid, cols, rows, plotW, plotH, totalW, totalH, mLeft, mTop, mRight, mBottom]);
 
+  if (!valid) return null;
   return (
     <div className="heatmap-visual">
       <canvas ref={canvasRef} className="heatmap-canvas" />
@@ -1009,6 +1013,7 @@ function marchingSegments(idx, bot, top, lft, rgt) {
 
 /* ── Sample points table ─── */
 function SamplePoints({ heatmap }) {
+  if (!heatmap?.triangle_sizes || !heatmap?.saturations || !heatmap?.grid) return null;
   const ts = heatmap.triangle_sizes;
   const sat = heatmap.saturations;
   const grid = heatmap.grid;
