@@ -8,6 +8,7 @@ import TestVisualization from "./components/TestVisualization";
 import StartRunModal from "./components/StartRunModal";
 import SettingsPage from "./components/SettingsPage";
 import ModelExplorer from "./components/ModelExplorer";
+import TuningPage from "./components/TuningPage";
 import DeleteConfirmModal from "./components/DeleteConfirmModal";
 import Toast from "./components/Toast";
 import "./css/App.css";
@@ -228,6 +229,7 @@ function App() {
             <Route path="/play-test/:testId/run/:runId" element={<PlayTest />} />
             <Route path="/settings" element={<SettingsPage onSimulationChange={setSimulationEnabled} />} />
             <Route path="/model-explorer" element={<ModelExplorer />} />
+            <Route path="/tuning" element={<TuningPage />} />
             <Route
               path="/test-visualization/:testId"
               element={<TestVisualization />}

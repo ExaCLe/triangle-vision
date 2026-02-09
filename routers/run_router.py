@@ -23,7 +23,7 @@ from algorithm_to_find_combinations.algorithm import (
     update_state,
     selection_probability,
 )
-from crud.algorithm_state import sync_algorithm_state
+from crud.algorithm_state import sync_algorithm_state, build_algorithm_rectangles
 from algorithm_to_find_combinations.ground_truth import simulate_trial, model_probability, compute_probability
 from routers.settings_router import _resolve_model
 
@@ -365,20 +365,7 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Test not found")
         size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
 
-        # Load rectangles for this test
-        db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()
-        rectangles = []
-        for rect in db_rectangles:
-            rectangles.append({
-                "bounds": {
-                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
-                    "saturation": (rect.min_saturation, rect.max_saturation),
-                },
-                "area": rect.area,
-                "true_samples": rect.true_samples,
-                "false_samples": rect.false_samples,
-            })
-
+        rectangles = build_algorithm_rectangles(db, run.test_id)
         state = AlgorithmState(size_bounds, sat_bounds, rectangles if rectangles else None)
         combination, selected_rect = get_next_combination(state)
         if not combination:
@@ -486,20 +473,8 @@ def submit_run_result(run_id: int, result: RunTrialResult, db: Session = Depends
             raise HTTPException(status_code=404, detail="Test not found")
         size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
 
-        # Load algorithm state
-        db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()
-        rectangles = []
-        for rect in db_rectangles:
-            rectangles.append({
-                "bounds": {
-                    "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
-                    "saturation": (rect.min_saturation, rect.max_saturation),
-                },
-                "area": rect.area,
-                "true_samples": rect.true_samples,
-                "false_samples": rect.false_samples,
-            })
-
+        # Load algorithm state with sample history for split redistribution.
+        rectangles = build_algorithm_rectangles(db, run.test_id)
         state = AlgorithmState(size_bounds, sat_bounds, rectangles if rectangles else None)
 
         # Find which rectangle contains this point
@@ -800,18 +775,7 @@ def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get
             phase = "pretest"
         else:
             size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
-            db_rectangles = db.query(Rectangle).filter(Rectangle.test_id == run.test_id).all()
-            rectangles = []
-            for rect in db_rectangles:
-                rectangles.append({
-                    "bounds": {
-                        "triangle_size": (rect.min_triangle_size, rect.max_triangle_size),
-                        "saturation": (rect.min_saturation, rect.max_saturation),
-                    },
-                    "area": rect.area,
-                    "true_samples": rect.true_samples,
-                    "false_samples": rect.false_samples,
-                })
+            rectangles = build_algorithm_rectangles(db, run.test_id)
             state = AlgorithmState(size_bounds, sat_bounds, rectangles if rectangles else None)
             combination, selected_rect = get_next_combination(state)
             if not combination:

@@ -176,7 +176,11 @@ def submit_test_result(result: TestCombinationResult, db: Session = Depends(get_
 
     if selected_rect:
         state = update_state(
-            state, selected_rect, result.model_dump(), bool(result.success)
+            state,
+            selected_rect,
+            result.model_dump(),
+            bool(result.success),
+            record_sample=False,
         )
         sync_algorithm_state(state, result.test_id, db)
 

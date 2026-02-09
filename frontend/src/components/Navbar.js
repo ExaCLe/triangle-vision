@@ -58,6 +58,18 @@ function Navbar({ onCreateClick, simulationEnabled }) {
             Models
           </span>
         )}
+        {simulationEnabled ? (
+          <Link
+            to="/tuning"
+            className={`nav-link ${isActive("/tuning") ? "active" : ""}`}
+          >
+            Tuning
+          </Link>
+        ) : (
+          <span className="nav-link disabled" title="Enable simulation mode in Settings to tune algorithm">
+            Tuning
+          </span>
+        )}
         <Link
           to="/settings"
           className={`nav-link ${isActive("/settings") ? "active" : ""}`}

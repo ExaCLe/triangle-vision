@@ -1,0 +1,477 @@
+/* ═══ Algorithm Tuning Page ═══ */
+
+.tuning-container {
+  max-width: none;
+  width: min(1760px, calc(100vw - 2.5rem));
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 3rem;
+}
+
+.tuning-header {
+  margin-bottom: 2rem;
+}
+
+.tuning-title {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25rem;
+}
+
+.tuning-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+}
+
+/* ── Config panel ─── */
+
+.tuning-config {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tuning-config-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.tuning-config-section {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--card-background);
+  box-shadow: var(--card-shadow);
+  flex: 1;
+  min-width: 280px;
+}
+
+.tuning-config-section h3 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tuning-params {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tuning-mode-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.tuning-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--text-primary);
+}
+
+.tuning-mode-option input {
+  margin: 0;
+}
+
+.tuning-inline-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.tuning-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tuning-param label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.tuning-param input,
+.tuning-param select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  background-color: var(--background);
+  color: var(--text-primary);
+  width: 90px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.tuning-param select {
+  width: auto;
+  min-width: 140px;
+}
+
+.tuning-param input:focus,
+.tuning-param select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+/* ── Run controls ─── */
+
+.tuning-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.tuning-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  letter-spacing: 0.02em;
+}
+
+.tuning-run-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.tuning-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tuning-run-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tuning-seed {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.tuning-seed input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  background-color: var(--background);
+  color: var(--text-primary);
+  width: 80px;
+}
+
+.tuning-seed input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+/* ── Results section ─── */
+
+.tuning-results {
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--card-background);
+  box-shadow: var(--card-shadow);
+  padding: 1.25rem;
+}
+
+/* ── Snapshot navigator ─── */
+
+.snapshot-navigator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.snapshot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.snapshot-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.snapshot-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.snapshot-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.snapshot-info {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  min-width: 180px;
+  text-align: right;
+}
+
+.snapshot-phase {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 0.4rem;
+}
+
+.snapshot-phase.pretest {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.snapshot-phase.main {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* ── Canvas grid (side by side) ─── */
+
+.tuning-canvas-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.tuning-canvas-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tuning-canvas-panel h4 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.tuning-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tuning-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.tuning-view-toggle button {
+  border: none;
+  background: var(--background);
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+}
+
+.tuning-view-toggle button + button {
+  border-left: 1px solid var(--card-border);
+}
+
+.tuning-view-toggle button.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.tuning-view-toggle button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Algorithm canvas ─── */
+
+.algo-canvas-wrapper {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.algo-canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+.tuning-canvas-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.tuning-canvas-score {
+  margin: 0.3rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.tuning-inspect-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.tuning-small-btn {
+  margin-left: 0.2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.tuning-small-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.tuning-canvas-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  border: 1px dashed var(--card-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Stats bar ─── */
+
+.tuning-stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tuning-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tuning-stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.tuning-stat-value {
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ── Warnings ─── */
+
+.tuning-warnings {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: #e65100;
+}
+
+.tuning-warnings ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+
+/* ── Loading overlay ─── */
+
+.tuning-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ── Responsive ─── */
+
+@media (max-width: 900px) {
+  .tuning-canvas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tuning-config-row {
+    flex-direction: column;
+  }
+
+  .tuning-config-section {
+    min-width: unset;
+  }
+}

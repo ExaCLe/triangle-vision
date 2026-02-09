@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from alembic.config import Config
 from alembic import command
 from routers import test_router, test_combination_router
-from routers import settings_router, run_router
+from routers import settings_router, run_router, tuning_router
 from fastapi.middleware.cors import CORSMiddleware
 
 # Run Alembic migrations to ensure the database schema is up to date
@@ -31,6 +31,7 @@ app.include_router(test_router.router, prefix="/api")
 app.include_router(test_combination_router.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(run_router.router, prefix="/api")
+app.include_router(tuning_router.router, prefix="/api")
 
 # Determine the absolute path to the frontend build
 if getattr(sys, "frozen", False):
