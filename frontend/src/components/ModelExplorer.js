@@ -72,7 +72,8 @@ function ModelExplorer() {
   }, [selectedModel, steps, boundsQuery]);
 
   useEffect(() => {
-    fetchHeatmap();
+    const timer = setTimeout(() => fetchHeatmap(), 300);
+    return () => clearTimeout(timer);
   }, [fetchHeatmap]);
 
   // Fetch comparison heatmap
@@ -91,7 +92,8 @@ function ModelExplorer() {
   }, [compareModel, steps, tab, boundsQuery]);
 
   useEffect(() => {
-    fetchCompareHeatmap();
+    const timer = setTimeout(() => fetchCompareHeatmap(), 300);
+    return () => clearTimeout(timer);
   }, [fetchCompareHeatmap]);
 
   const currentModelInfo = models.find((m) => m.name === selectedModel);
@@ -263,14 +265,27 @@ function FormulaTab({ model, heatmap, loading }) {
           <span className="formula-label">P(success) =</span>
           <code className="formula-code">{model.description}</code>
         </div>
-        <p className="formula-note">
-          Where <code>ts</code> is the triangle size in pixels and{" "}
-          <code>sat</code> is the saturation (absolute values).
-          The model uses per-axis scaling ({" "}
-          <code>size_scale={model.size_scale ?? "?"}</code>,{" "}
-          <code>sat_scale={model.sat_scale ?? "?"}</code>) so
-          probabilities stay the same regardless of viewing bounds.
-        </p>
+        {model.model_type === "bandpass" ? (
+          <p className="formula-note">
+            Bandpass (sigmoid-window) model. <code>W_x = sig((x - low) / w_low) * sig((high - x) / w_high)</code>.
+            The window parameters define where probability transitions from floor (25%) to ceiling (100%).
+          </p>
+        ) : model.model_type === "threshold" ? (
+          <p className="formula-note">
+            Contrast-threshold model. <code>C_t(ts)</code> defines the saturation
+            threshold curve — below it you're at chance (25%). Performance rises
+            exponentially above threshold with rate <code>k</code>.
+          </p>
+        ) : (
+          <p className="formula-note">
+            Where <code>ts</code> is the triangle size in pixels and{" "}
+            <code>sat</code> is the saturation (absolute values).
+            The model uses per-axis scaling ({" "}
+            <code>size_scale={model.size_scale ?? "?"}</code>,{" "}
+            <code>sat_scale={model.sat_scale ?? "?"}</code>) so
+            probabilities stay the same regardless of viewing bounds.
+          </p>
+        )}
       </div>
 
       <div className="formula-card">
@@ -284,10 +299,10 @@ function FormulaTab({ model, heatmap, loading }) {
       <div className="formula-card">
         <h3>Heatmap Visualization</h3>
         <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
-          RdYlGn colormap (red=low, yellow=mid, green=high). White contour = 75%,
-          black contour = 90%.
+          RdYlGn colormap (red=low, yellow=mid, green=high). Contours: cyan ≈ 25%,
+          white = 75%, black = 90%, blue ≈ 100%.
         </p>
-        {loading ? (
+        {loading && !heatmap ? (
           <div className="loading-state">Loading heatmap…</div>
         ) : heatmap ? (
           <HeatmapCanvas heatmap={heatmap} />
@@ -512,11 +527,31 @@ function CompareTab({
    Custom Model Tab – define your own formula
    ══════════════════════════════════════════════════════════ */
 function CustomModelTab({ bounds, steps, onModelsChanged }) {
+  const [modelType, setModelType] = useState("polynomial");
+  // Polynomial params
   const [base, setBase] = useState(0.6);
   const [coefficient, setCoefficient] = useState(0.39);
   const [exponent, setExponent] = useState(0.5);
   const [sizeScale, setSizeScale] = useState(400);
   const [satScale, setSatScale] = useState(1);
+  // Bandpass params
+  const [tsLow, setTsLow] = useState(50);
+  const [tsWLow, setTsWLow] = useState(15);
+  const [tsHigh, setTsHigh] = useState(300);
+  const [tsWHigh, setTsWHigh] = useState(15);
+  const [satLow, setSatLow] = useState(0.2);
+  const [satWLow, setSatWLow] = useState(0.05);
+  const [satHigh, setSatHigh] = useState(0.8);
+  const [satWHigh, setSatWHigh] = useState(0.05);
+  const [bpGamma, setBpGamma] = useState(1);
+  const [epsClip, setEpsClip] = useState(0.01);
+  // Threshold params
+  const [cInf, setCInf] = useState(0.12);
+  const [c0, setC0] = useState(0.95);
+  const [ts50, setTs50] = useState(60);
+  const [thBeta, setThBeta] = useState(2);
+  const [thK, setThK] = useState(3);
+  // Common
   const [customHeatmap, setCustomHeatmap] = useState(null);
   const [customLoading, setCustomLoading] = useState(false);
   const [modelName, setModelName] = useState("");
@@ -526,18 +561,33 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
   const fetchCustom = useCallback(async () => {
     setCustomLoading(true);
     try {
+      const body = {
+        model_type: modelType,
+        steps,
+        ...bounds,
+      };
+      if (modelType === "bandpass") {
+        Object.assign(body, {
+          ts_low: tsLow, ts_w_low: tsWLow,
+          ts_high: tsHigh, ts_w_high: tsWHigh,
+          sat_low: satLow, sat_w_low: satWLow,
+          sat_high: satHigh, sat_w_high: satWHigh,
+          gamma: bpGamma, eps_clip: epsClip,
+        });
+      } else if (modelType === "threshold") {
+        Object.assign(body, {
+          c_inf: cInf, c_0: c0, ts_50: ts50, beta: thBeta, k: thK,
+        });
+      } else {
+        Object.assign(body, {
+          base, coefficient, exponent,
+          size_scale: sizeScale, sat_scale: satScale,
+        });
+      }
       const r = await fetch(`${API}/simulation-models/custom/heatmap`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base,
-          coefficient,
-          exponent,
-          size_scale: sizeScale,
-          sat_scale: satScale,
-          steps,
-          ...bounds,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await r.json();
       setCustomHeatmap(data);
@@ -546,10 +596,13 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
     } finally {
       setCustomLoading(false);
     }
-  }, [base, coefficient, exponent, sizeScale, satScale, steps, bounds]);
+  }, [modelType, base, coefficient, exponent, sizeScale, satScale,
+      tsLow, tsWLow, tsHigh, tsWHigh, satLow, satWLow, satHigh, satWHigh,
+      bpGamma, epsClip, cInf, c0, ts50, thBeta, thK, steps, bounds]);
 
   useEffect(() => {
-    fetchCustom();
+    const timer = setTimeout(() => fetchCustom(), 300);
+    return () => clearTimeout(timer);
   }, [fetchCustom]);
 
   // Load saved models
@@ -566,22 +619,33 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
       return;
     }
     try {
+      const body = { name: modelName.trim(), model_type: modelType };
+      if (modelType === "bandpass") {
+        Object.assign(body, {
+          ts_low: tsLow, ts_w_low: tsWLow,
+          ts_high: tsHigh, ts_w_high: tsWHigh,
+          sat_low: satLow, sat_w_low: satWLow,
+          sat_high: satHigh, sat_w_high: satWHigh,
+          gamma: bpGamma, eps_clip: epsClip,
+        });
+      } else if (modelType === "threshold") {
+        Object.assign(body, {
+          c_inf: cInf, c_0: c0, ts_50: ts50, beta: thBeta, k: thK,
+        });
+      } else {
+        Object.assign(body, {
+          base, coefficient, exponent,
+          size_scale: sizeScale, sat_scale: satScale,
+        });
+      }
       const r = await fetch(`${API}/custom-models`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: modelName.trim(),
-          base,
-          coefficient,
-          exponent,
-          size_scale: sizeScale,
-          sat_scale: satScale,
-        }),
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         setSaveStatus("Model saved successfully!");
         setModelName("");
-        // Reload saved models + parent dropdown
         const models = await fetch(`${API}/custom-models`).then((r) => r.json());
         setSavedModels(models);
         onModelsChanged?.();
@@ -596,11 +660,32 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
   };
 
   const handleLoad = (model) => {
-    setBase(model.base);
-    setCoefficient(model.coefficient);
-    setExponent(model.exponent);
-    setSizeScale(model.size_scale ?? 400);
-    setSatScale(model.sat_scale ?? 1);
+    const type = model.model_type || "polynomial";
+    setModelType(type);
+    if (type === "bandpass") {
+      setTsLow(model.ts_low ?? 50);
+      setTsWLow(model.ts_w_low ?? 15);
+      setTsHigh(model.ts_high ?? 300);
+      setTsWHigh(model.ts_w_high ?? 15);
+      setSatLow(model.sat_low ?? 0.2);
+      setSatWLow(model.sat_w_low ?? 0.05);
+      setSatHigh(model.sat_high ?? 0.8);
+      setSatWHigh(model.sat_w_high ?? 0.05);
+      setBpGamma(model.gamma ?? 1);
+      setEpsClip(model.eps_clip ?? 0.01);
+    } else if (type === "threshold") {
+      setCInf(model.c_inf ?? 0.12);
+      setC0(model.c_0 ?? 0.95);
+      setTs50(model.ts_50 ?? 60);
+      setThBeta(model.beta ?? 2);
+      setThK(model.k ?? 3);
+    } else {
+      setBase(model.base);
+      setCoefficient(model.coefficient);
+      setExponent(model.exponent);
+      setSizeScale(model.size_scale ?? 400);
+      setSatScale(model.sat_scale ?? 1);
+    }
     setSaveStatus(`Loaded "${model.name}"`);
     setTimeout(() => setSaveStatus(""), 3000);
   };
@@ -619,69 +704,169 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
     } catch {}
   };
 
-  const desc = `${base} + ${coefficient} × (((ts/${sizeScale})² + (sat/${satScale})²) / 2)^${exponent}`;
+  const desc = modelType === "bandpass"
+    ? `0.25 + 0.75 × W, W_ts = σ((ts-${tsLow})/${tsWLow})·σ((${tsHigh}-ts)/${tsWHigh}), W_sat = σ((sat-${satLow})/${satWLow})·σ((${satHigh}-sat)/${satWHigh})`
+    : modelType === "threshold"
+    ? `0.25 + 0.75 × (1 - exp(-${thK} × max(0, ln(sat / C_t(ts))))), C_t = ${cInf} + (${c0} - ${cInf}) / (1 + (ts/${ts50})^${thBeta})`
+    : `${base} + ${coefficient} × (((ts/${sizeScale})² + (sat/${satScale})²) / 2)^${exponent}`;
 
   return (
     <div className="custom-model-tab">
       <div className="formula-card">
         <h3>Define Custom Model</h3>
-        <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
-          Formula: <code>P = base + coefficient × (((ts/size_scale)² + (sat/sat_scale)²) / 2)<sup>exponent</sup></code>
-        </p>
-        <p className="formula-note" style={{ marginBottom: "0.75rem", fontSize: "0.72rem" }}>
-          <code>size_scale</code> and <code>sat_scale</code> control the
-          reference value for each axis. The model uses absolute values so
-          changing the viewing bounds won't change the probabilities.
-        </p>
-        <div className="custom-params">
-          <div className="custom-param">
-            <label>Base</label>
-            <input
-              type="number"
-              step="0.01"
-              value={base}
-              onChange={(e) => setBase(parseNum(e.target.value, base))}
-            />
-          </div>
-          <div className="custom-param">
-            <label>Coefficient</label>
-            <input
-              type="number"
-              step="0.01"
-              value={coefficient}
-              onChange={(e) => setCoefficient(parseNum(e.target.value, coefficient))}
-            />
-          </div>
-          <div className="custom-param">
-            <label>Exponent</label>
-            <input
-              type="number"
-              step="0.1"
-              value={exponent}
-              onChange={(e) => setExponent(parseNum(e.target.value, exponent))}
-            />
-          </div>
-          <div className="custom-param">
-            <label>Size scale (px)</label>
-            <input
-              type="number"
-              step="10"
-              min="1"
-              value={sizeScale}
-              onChange={(e) => setSizeScale(parseNum(e.target.value, sizeScale))}
-            />
-          </div>
-          <div className="custom-param">
-            <label>Sat scale</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0.01"
-              value={satScale}
-              onChange={(e) => setSatScale(parseNum(e.target.value, satScale))}
-            />
+
+        {/* Model Type selector */}
+        <div className="custom-params" style={{ marginBottom: "0.75rem" }}>
+          <div className="custom-param" style={{ minWidth: "200px" }}>
+            <label>Model Type</label>
+            <select
+              value={modelType}
+              onChange={(e) => setModelType(e.target.value)}
+              style={{ width: "100%", padding: "0.4rem" }}
+            >
+              <option value="polynomial">Polynomial</option>
+              <option value="bandpass">Bandpass (Sigmoid Window)</option>
+              <option value="threshold">Contrast Threshold</option>
+            </select>
           </div>
         </div>
+
+        {modelType === "polynomial" && (
+          <>
+            <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
+              Formula: <code>P = base + coefficient × (((ts/size_scale)² + (sat/sat_scale)²) / 2)<sup>exponent</sup></code>
+            </p>
+            <div className="custom-params">
+              <div className="custom-param">
+                <label>Base</label>
+                <input type="number" step="0.01" value={base}
+                  onChange={(e) => setBase(parseNum(e.target.value, base))} />
+              </div>
+              <div className="custom-param">
+                <label>Coefficient</label>
+                <input type="number" step="0.01" value={coefficient}
+                  onChange={(e) => setCoefficient(parseNum(e.target.value, coefficient))} />
+              </div>
+              <div className="custom-param">
+                <label>Exponent</label>
+                <input type="number" step="0.1" value={exponent}
+                  onChange={(e) => setExponent(parseNum(e.target.value, exponent))} />
+              </div>
+              <div className="custom-param">
+                <label>Size scale (px)</label>
+                <input type="number" step="10" min="1" value={sizeScale}
+                  onChange={(e) => setSizeScale(parseNum(e.target.value, sizeScale))} />
+              </div>
+              <div className="custom-param">
+                <label>Sat scale</label>
+                <input type="number" step="0.1" min="0.01" value={satScale}
+                  onChange={(e) => setSatScale(parseNum(e.target.value, satScale))} />
+              </div>
+            </div>
+          </>
+        )}
+        {modelType === "bandpass" && (
+          <>
+            <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
+              Formula: <code>P = 0.25 + 0.75 × W</code>, where <code>W = clip(((W_ts·W_sat)^γ − ε) / (1 − ε), 0, 1)</code>
+            </p>
+            <p className="formula-note" style={{ marginBottom: "0.75rem", fontSize: "0.72rem" }}>
+              <code>W_x = σ((x − low) / w_low) · σ((high − x) / w_high)</code>.
+              Defines a sigmoid-gated window on each axis.
+            </p>
+            <div className="custom-params">
+              <div className="custom-param">
+                <label>Size low</label>
+                <input type="number" step="5" value={tsLow}
+                  onChange={(e) => setTsLow(parseNum(e.target.value, tsLow))} />
+              </div>
+              <div className="custom-param">
+                <label>Size w_low</label>
+                <input type="number" step="1" min="0.1" value={tsWLow}
+                  onChange={(e) => setTsWLow(parseNum(e.target.value, tsWLow))} />
+              </div>
+              <div className="custom-param">
+                <label>Size high</label>
+                <input type="number" step="5" value={tsHigh}
+                  onChange={(e) => setTsHigh(parseNum(e.target.value, tsHigh))} />
+              </div>
+              <div className="custom-param">
+                <label>Size w_high</label>
+                <input type="number" step="1" min="0.1" value={tsWHigh}
+                  onChange={(e) => setTsWHigh(parseNum(e.target.value, tsWHigh))} />
+              </div>
+              <div className="custom-param">
+                <label>Sat low</label>
+                <input type="number" step="0.05" value={satLow}
+                  onChange={(e) => setSatLow(parseNum(e.target.value, satLow))} />
+              </div>
+              <div className="custom-param">
+                <label>Sat w_low</label>
+                <input type="number" step="0.01" min="0.001" value={satWLow}
+                  onChange={(e) => setSatWLow(parseNum(e.target.value, satWLow))} />
+              </div>
+              <div className="custom-param">
+                <label>Sat high</label>
+                <input type="number" step="0.05" value={satHigh}
+                  onChange={(e) => setSatHigh(parseNum(e.target.value, satHigh))} />
+              </div>
+              <div className="custom-param">
+                <label>Sat w_high</label>
+                <input type="number" step="0.01" min="0.001" value={satWHigh}
+                  onChange={(e) => setSatWHigh(parseNum(e.target.value, satWHigh))} />
+              </div>
+              <div className="custom-param">
+                <label>Gamma (γ)</label>
+                <input type="number" step="0.1" min="0.1" value={bpGamma}
+                  onChange={(e) => setBpGamma(parseNum(e.target.value, bpGamma))} />
+              </div>
+              <div className="custom-param">
+                <label>Eps clip (ε)</label>
+                <input type="number" step="0.01" min="0" max="0.99" value={epsClip}
+                  onChange={(e) => setEpsClip(parseNum(e.target.value, epsClip))} />
+              </div>
+            </div>
+          </>
+        )}
+        {modelType === "threshold" && (
+          <>
+            <p className="formula-note" style={{ marginBottom: "0.75rem" }}>
+              Formula: <code>P = 0.25 + 0.75 × (1 − e<sup>−k·max(0, ln(sat/C_t(ts)))</sup>)</code>
+            </p>
+            <p className="formula-note" style={{ marginBottom: "0.75rem", fontSize: "0.72rem" }}>
+              <code>C_t(ts) = C_∞ + (C_0 − C_∞) / (1 + (ts/ts_50)^β)</code>.
+              Size sets the required saturation threshold; performance rises only above it.
+            </p>
+            <div className="custom-params">
+              <div className="custom-param">
+                <label>C_∞ (asymptote)</label>
+                <input type="number" step="0.01" min="0" max="1" value={cInf}
+                  onChange={(e) => setCInf(parseNum(e.target.value, cInf))} />
+              </div>
+              <div className="custom-param">
+                <label>C_0 (at size 0)</label>
+                <input type="number" step="0.01" min="0" value={c0}
+                  onChange={(e) => setC0(parseNum(e.target.value, c0))} />
+              </div>
+              <div className="custom-param">
+                <label>ts_50 (midpoint px)</label>
+                <input type="number" step="5" min="1" value={ts50}
+                  onChange={(e) => setTs50(parseNum(e.target.value, ts50))} />
+              </div>
+              <div className="custom-param">
+                <label>β (steepness)</label>
+                <input type="number" step="0.1" min="0.1" value={thBeta}
+                  onChange={(e) => setThBeta(parseNum(e.target.value, thBeta))} />
+              </div>
+              <div className="custom-param">
+                <label>k (rise rate)</label>
+                <input type="number" step="0.5" min="0.1" value={thK}
+                  onChange={(e) => setThK(parseNum(e.target.value, thK))} />
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="formula-display" style={{ marginTop: "0.75rem" }}>
           <span className="formula-label">P(success) =</span>
           <code className="formula-code">{desc}</code>
@@ -750,9 +935,26 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>{model.name}</div>
+                  <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>
+                    {model.name}
+                    <span style={{
+                      marginLeft: "0.5rem",
+                      fontSize: "0.65rem",
+                      padding: "0.1rem 0.35rem",
+                      borderRadius: "3px",
+                      backgroundColor: { bandpass: "#e3f2fd", threshold: "#fff3e0", polynomial: "#f3e5f5" }[(model.model_type || "polynomial")] || "#f3e5f5",
+                      color: { bandpass: "#1565c0", threshold: "#e65100", polynomial: "#7b1fa2" }[(model.model_type || "polynomial")] || "#7b1fa2",
+                    }}>
+                      {(model.model_type || "polynomial")}
+                    </span>
+                  </div>
                   <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                    {model.base} + {model.coefficient} × (((ts/{model.size_scale ?? 400})² + (sat/{model.sat_scale ?? 1})²) / 2)^{model.exponent}
+                    {(model.model_type || "polynomial") === "bandpass"
+                      ? `bandpass: ts=[${model.ts_low},${model.ts_high}], sat=[${model.sat_low},${model.sat_high}], γ=${model.gamma}`
+                      : (model.model_type || "polynomial") === "threshold"
+                      ? `threshold: C_∞=${model.c_inf}, C_0=${model.c_0}, ts_50=${model.ts_50}, β=${model.beta}, k=${model.k}`
+                      : `${model.base} + ${model.coefficient} × (((ts/${model.size_scale ?? 400})² + (sat/${model.sat_scale ?? 1})²) / 2)^${model.exponent}`
+                    }
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.25rem" }}>
@@ -790,12 +992,12 @@ function CustomModelTab({ bounds, steps, onModelsChanged }) {
         </div>
       )}
 
-      {customLoading ? (
+      {customLoading && !customHeatmap ? (
         <div className="loading-state">Computing…</div>
       ) : customHeatmap ? (
         <>
-          <div className="formula-card">
-            <h3>Heatmap</h3>
+          <div className="formula-card" style={{ position: "relative" }}>
+            <h3>Heatmap{customLoading ? <span style={{ fontSize: "0.7rem", fontWeight: 400, marginLeft: "0.5rem", color: "var(--text-secondary)" }}>updating…</span> : null}</h3>
             <HeatmapCanvas heatmap={customHeatmap} />
           </div>
           <div className="formula-card">
@@ -856,8 +1058,12 @@ function HeatmapCanvas({ heatmap }) {
     }
 
     // Draw contour lines using marching squares
+    // Use 0.26/0.99 instead of exact 0.25/1.00 — models with floor=0.25
+    // have no values below 0.25, and exp-based models never reach exactly 1.0.
+    drawContour(ctx, heatmap.grid, 0.26, "rgba(0,255,255,0.9)", 2, margin, plotW, plotH, cols, rows);
     drawContour(ctx, heatmap.grid, 0.75, "rgba(255,255,255,0.9)", 2.5, margin, plotW, plotH, cols, rows);
     drawContour(ctx, heatmap.grid, 0.90, "rgba(0,0,0,0.8)", 2.5, margin, plotW, plotH, cols, rows);
+    drawContour(ctx, heatmap.grid, 0.99, "rgba(0,0,255,0.7)", 2, margin, plotW, plotH, cols, rows);
 
     // Axes
     ctx.strokeStyle = "var(--border, #ccc)";
@@ -915,7 +1121,7 @@ function HeatmapCanvas({ heatmap }) {
       .trim() || "#7c7a72";
     ctx.font = "9px monospace";
     ctx.textAlign = "left";
-    const barLabels = [1.0, 0.9, 0.75, 0.6, 0.3];
+    const barLabels = [1.0, 0.9, 0.75, 0.6, 0.3, 0.25];
     barLabels.forEach((v) => {
       const frac = (v - 0.3) / 0.7;
       const y = margin.top + (1 - frac) * barH + 3;

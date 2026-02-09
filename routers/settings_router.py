@@ -16,6 +16,8 @@ from algorithm_to_find_combinations.ground_truth import (
     SIMULATION_MODELS,
     model_probability,
     _model_description,
+    compute_probability,
+    compute_description,
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -27,18 +29,15 @@ def _resolve_model(name: str, db: Session) -> dict | None:
         return SIMULATION_MODELS[name]
     for m in get_custom_models(db):
         if m["name"] == name:
-            return {
-                "label": m["name"],
-                "base": m["base"],
-                "coefficient": m["coefficient"],
-                "exponent": m["exponent"],
-                "size_scale": m.get("size_scale", 400.0),
-                "sat_scale": m.get("sat_scale", 1.0),
-                "description": _model_description(
-                    m["base"], m["coefficient"], m["exponent"],
-                    m.get("size_scale", 400.0), m.get("sat_scale", 1.0),
-                ),
-            }
+            entry = dict(m)
+            entry["label"] = m["name"]
+            # Back-compat: old custom models without model_type are polynomial
+            entry.setdefault("model_type", "polynomial")
+            if entry["model_type"] == "polynomial":
+                entry.setdefault("size_scale", 400.0)
+                entry.setdefault("sat_scale", 1.0)
+            entry["description"] = compute_description(entry)
+            return entry
     return None
 
 
@@ -55,33 +54,22 @@ def put_settings(settings: PretestSettings, db: Session = Depends(get_db)):
 @router.get("/simulation-models")
 def list_simulation_models(db: Session = Depends(get_db)):
     """Return all available models — built-in + saved custom models."""
-    result = [
-        {
-            "name": name,
-            "label": entry["label"],
-            "description": entry["description"],
-            "base": entry["base"],
-            "coefficient": entry["coefficient"],
-            "exponent": entry["exponent"],
-            "size_scale": entry["size_scale"],
-            "sat_scale": entry["sat_scale"],
-        }
-        for name, entry in SIMULATION_MODELS.items()
-    ]
+    result = []
+    for name, entry in SIMULATION_MODELS.items():
+        item = {"name": name}
+        # Copy all parameter keys from the entry
+        for k, v in entry.items():
+            item[k] = v
+        result.append(item)
     for m in get_custom_models(db):
-        result.append({
-            "name": m["name"],
-            "label": m["name"],
-            "description": _model_description(
-                m["base"], m["coefficient"], m["exponent"],
-                m.get("size_scale", 400.0), m.get("sat_scale", 1.0),
-            ),
-            "base": m["base"],
-            "coefficient": m["coefficient"],
-            "exponent": m["exponent"],
-            "size_scale": m.get("size_scale", 400.0),
-            "sat_scale": m.get("sat_scale", 1.0),
-        })
+        item = dict(m)
+        item.setdefault("model_type", "polynomial")
+        item["label"] = m["name"]
+        if item["model_type"] == "polynomial":
+            item.setdefault("size_scale", 400.0)
+            item.setdefault("sat_scale", 1.0)
+        item["description"] = compute_description(item)
+        result.append(item)
     return result
 
 
@@ -121,11 +109,7 @@ def get_model_heatmap(
     for sat in saturations:
         row = []
         for ts in triangle_sizes:
-            p = model_probability(
-                ts, sat,
-                entry["base"], entry["coefficient"], entry["exponent"],
-                entry["size_scale"], entry["sat_scale"],
-            )
+            p = compute_probability(entry, ts, sat)
             row.append(round(p, 4))
         grid.append(row)
 
@@ -140,16 +124,61 @@ def get_model_heatmap(
 
 
 class CustomModelRequest(BaseModel):
+    model_type: str = "polynomial"
+    # Polynomial params
     base: float = 0.6
     coefficient: float = 0.39
     exponent: float = 0.5
     size_scale: float = 400.0
     sat_scale: float = 1.0
+    # Bandpass params
+    ts_low: float = 50.0
+    ts_w_low: float = 15.0
+    ts_high: float = 300.0
+    ts_w_high: float = 15.0
+    sat_low: float = 0.2
+    sat_w_low: float = 0.05
+    sat_high: float = 0.8
+    sat_w_high: float = 0.05
+    gamma: float = 1.0
+    eps_clip: float = 0.01
+    # Threshold params
+    c_inf: float = 0.12
+    c_0: float = 0.95
+    ts_50: float = 60.0
+    beta: float = 2.0
+    k: float = 3.0
+    # Grid range
     steps: int = 20
     min_triangle_size: float = 10
     max_triangle_size: float = 400
     min_saturation: float = 0
     max_saturation: float = 1
+
+
+def _custom_request_to_model_dict(req: CustomModelRequest) -> dict:
+    """Build a model dict from a CustomModelRequest."""
+    if req.model_type == "bandpass":
+        return {
+            "model_type": "bandpass",
+            "ts_low": req.ts_low, "ts_w_low": req.ts_w_low,
+            "ts_high": req.ts_high, "ts_w_high": req.ts_w_high,
+            "sat_low": req.sat_low, "sat_w_low": req.sat_w_low,
+            "sat_high": req.sat_high, "sat_w_high": req.sat_w_high,
+            "gamma": req.gamma, "eps_clip": req.eps_clip,
+        }
+    if req.model_type == "threshold":
+        return {
+            "model_type": "threshold",
+            "c_inf": req.c_inf, "c_0": req.c_0,
+            "ts_50": req.ts_50, "beta": req.beta, "k": req.k,
+        }
+    return {
+        "model_type": "polynomial",
+        "base": req.base, "coefficient": req.coefficient,
+        "exponent": req.exponent,
+        "size_scale": req.size_scale, "sat_scale": req.sat_scale,
+    }
 
 
 @router.post("/simulation-models/custom/heatmap")
@@ -171,25 +200,20 @@ def custom_model_heatmap(req: CustomModelRequest):
         for i in range(steps)
     ]
 
+    model_dict = _custom_request_to_model_dict(req)
     grid = []
     for sat in saturations:
         row = []
         for ts in triangle_sizes:
-            p = model_probability(
-                ts, sat,
-                req.base, req.coefficient, req.exponent,
-                req.size_scale, req.sat_scale,
-            )
+            p = compute_probability(model_dict, ts, sat)
             row.append(round(p, 4))
         grid.append(row)
 
-    desc = (
-        f"{req.base} + {req.coefficient} * "
-        f"(((ts/{req.size_scale})² + (sat/{req.sat_scale})²) / 2)^{req.exponent}"
-    )
+    desc = compute_description(model_dict)
+    label = f"Custom ({req.model_type})"
     return {
         "model_name": "custom",
-        "label": f"Custom (base {req.base})",
+        "label": label,
         "description": desc,
         "triangle_sizes": triangle_sizes,
         "saturations": saturations,
@@ -199,11 +223,30 @@ def custom_model_heatmap(req: CustomModelRequest):
 
 class SaveCustomModelRequest(BaseModel):
     name: str
+    model_type: str = "polynomial"
+    # Polynomial params
     base: float = 0.6
     coefficient: float = 0.39
     exponent: float = 0.5
     size_scale: float = 400.0
     sat_scale: float = 1.0
+    # Bandpass params
+    ts_low: float = 50.0
+    ts_w_low: float = 15.0
+    ts_high: float = 300.0
+    ts_w_high: float = 15.0
+    sat_low: float = 0.2
+    sat_w_low: float = 0.05
+    sat_high: float = 0.8
+    sat_w_high: float = 0.05
+    gamma: float = 1.0
+    eps_clip: float = 0.01
+    # Threshold params
+    c_inf: float = 0.12
+    c_0: float = 0.95
+    ts_50: float = 60.0
+    beta: float = 2.0
+    k: float = 3.0
 
 
 @router.get("/custom-models")
@@ -217,11 +260,32 @@ def create_custom_model(req: SaveCustomModelRequest, db: Session = Depends(get_d
     """Save a custom model."""
     if not req.name or not req.name.strip():
         raise HTTPException(status_code=400, detail="Model name is required")
-    model = save_custom_model(
-        db, req.name.strip(),
-        req.base, req.coefficient, req.exponent,
-        req.size_scale, req.sat_scale,
-    )
+    if req.model_type == "bandpass":
+        model_data = {
+            "name": req.name.strip(),
+            "model_type": "bandpass",
+            "ts_low": req.ts_low, "ts_w_low": req.ts_w_low,
+            "ts_high": req.ts_high, "ts_w_high": req.ts_w_high,
+            "sat_low": req.sat_low, "sat_w_low": req.sat_w_low,
+            "sat_high": req.sat_high, "sat_w_high": req.sat_w_high,
+            "gamma": req.gamma, "eps_clip": req.eps_clip,
+        }
+    elif req.model_type == "threshold":
+        model_data = {
+            "name": req.name.strip(),
+            "model_type": "threshold",
+            "c_inf": req.c_inf, "c_0": req.c_0,
+            "ts_50": req.ts_50, "beta": req.beta, "k": req.k,
+        }
+    else:
+        model_data = {
+            "name": req.name.strip(),
+            "model_type": "polynomial",
+            "base": req.base, "coefficient": req.coefficient,
+            "exponent": req.exponent,
+            "size_scale": req.size_scale, "sat_scale": req.sat_scale,
+        }
+    model = save_custom_model(db, model_data)
     return model
 
 

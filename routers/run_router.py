@@ -24,7 +24,7 @@ from algorithm_to_find_combinations.algorithm import (
     selection_probability,
 )
 from crud.algorithm_state import sync_algorithm_state
-from algorithm_to_find_combinations.ground_truth import simulate_trial, model_probability
+from algorithm_to_find_combinations.ground_truth import simulate_trial, model_probability, compute_probability
 from routers.settings_router import _resolve_model
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -828,12 +828,7 @@ def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get
         entry = _resolve_model(req.model_name, db)
         if entry is None:
             raise HTTPException(status_code=422, detail=f"Unknown model: {req.model_name}")
-        prob = model_probability(
-            trial_data["triangle_size"],
-            trial_data["saturation"],
-            entry["base"], entry["coefficient"], entry["exponent"],
-            entry["size_scale"], entry["sat_scale"],
-        )
+        prob = compute_probability(entry, trial_data["triangle_size"], trial_data["saturation"])
         success = random.random() < prob
         success_int = 1 if success else 0
 
