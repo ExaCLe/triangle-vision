@@ -984,7 +984,19 @@ function TuningPage() {
 
           <div className="tuning-post-config">
             <div className="tuning-config-section">
-              <h3>Post-run Controls</h3>
+              <div className="tuning-section-heading">
+                <h3>Post-run Controls</h3>
+                <InlineHelp title="Post-run controls">
+                  <p>
+                    These controls do not rerun simulation. They only change analysis scope
+                    and smoothing inputs used to compute estimated surfaces and metrics.
+                  </p>
+                  <p>
+                    Inspect bounds clip the evaluated window. Brush inner/outer set the
+                    smoothing kernel radii used by the soft-brush estimator.
+                  </p>
+                </InlineHelp>
+              </div>
               <div className="tuning-params">
                 <div className="tuning-param">
                   <label>Inspect size min</label>
@@ -1107,6 +1119,15 @@ function TuningPage() {
             >
               Model Discrimination
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={resultsTab === "help"}
+              className={`tuning-tab-btn ${resultsTab === "help" ? "active" : ""}`}
+              onClick={() => setResultsTab("help")}
+            >
+              Help & Glossary
+            </button>
           </div>
 
           {resultsTab === "progress" && (
@@ -1224,6 +1245,8 @@ function TuningPage() {
               applySelectedFocusModel={applySelectedFocusModel}
             />
           )}
+
+          {resultsTab === "help" && <TuningHelpCenter />}
         </div>
       )}
     </div>
@@ -1439,7 +1462,23 @@ function ModelDiscriminationPanel({
     <div className="tuning-discrimination">
       <div className="tuning-post-config">
         <div className="tuning-config-section">
-          <h3>Shift Sweep Configuration</h3>
+          <div className="tuning-section-heading">
+            <h3>Shift Sweep Configuration</h3>
+            <InlineHelp title="How sweep configuration works">
+              <p>
+                The sweep enumerates a grid of shifted ground-truth models:
+                one axis for size shift, one axis for saturation shift.
+              </p>
+              <p>
+                For each shift candidate, the full algorithm is rerun with the
+                same simulation settings, repeated N times (`repeats / model`).
+              </p>
+              <p>
+                `Surface steps` controls the heatmap resolution used as the
+                feature space for discrimination metrics.
+              </p>
+            </InlineHelp>
+          </div>
           <div className="tuning-params">
             <div className="tuning-param">
               <label>Size shift min (px)</label>
@@ -1572,6 +1611,16 @@ function ModelDiscriminationPanel({
             >
               {comparisonLoading ? "Running experiment..." : "Run Discrimination Experiment"}
             </button>
+            <InlineHelp title="What this button executes">
+              <p>
+                One experiment run = evaluate every sweep candidate.
+                Each candidate runs the full pretest + main algorithm repeatedly.
+              </p>
+              <p>
+                The matrix/ranking are computed from those repeated outcomes,
+                not from a single snapshot fit.
+              </p>
+            </InlineHelp>
             {comparisonResult && (
               <>
                 <div className="tuning-param">
@@ -1593,6 +1642,15 @@ function ModelDiscriminationPanel({
                     })}
                   </select>
                 </div>
+                <InlineHelp title="Visual focus model">
+                  <p>
+                    The sweep metrics include all candidates. This selector only
+                    changes which single candidate is rendered in the top visual pairs.
+                  </p>
+                  <p>
+                    Use this to inspect any shifted model from the ranking/matrix.
+                  </p>
+                </InlineHelp>
                 <button
                   className="tuning-small-btn"
                   onClick={applySelectedFocusModel}
@@ -1632,7 +1690,19 @@ function ModelDiscriminationPanel({
         <>
           <div className="tuning-discrimination-pairs">
             <div className="tuning-discrimination-pair-card">
-              <h4>Baseline Surface</h4>
+              <div className="tuning-section-heading">
+                <h4>Baseline Surface</h4>
+                <InlineHelp title="Baseline surface pair">
+                  <p>
+                    Top plot is estimated from repeated algorithm outcomes.
+                    Bottom plot is the true baseline generating probability surface.
+                  </p>
+                  <p>
+                    Compare shape, contour placement, and edge crossings to
+                    judge estimator bias and variance.
+                  </p>
+                </InlineHelp>
+              </div>
               <div className="tuning-discrimination-pair-stack">
                 <div className="tuning-canvas-panel">
                   <h4>Estimated</h4>
@@ -1664,7 +1734,19 @@ function ModelDiscriminationPanel({
             </div>
 
             <div className="tuning-discrimination-pair-card">
-              <h4>Focus Shift Surface</h4>
+              <div className="tuning-section-heading">
+                <h4>Focus Shift Surface</h4>
+                <InlineHelp title="Focus shift surface pair">
+                  <p>
+                    Same as baseline pair, but for the selected shifted model.
+                    This candidate is chosen with the visual focus selector.
+                  </p>
+                  <p>
+                    If estimated and ground-truth maps disagree strongly, the
+                    shift may be hard to recover under current trial budget.
+                  </p>
+                </InlineHelp>
+              </div>
               <div className="tuning-discrimination-pair-stack">
                 <div className="tuning-canvas-panel">
                   <h4>Estimated</h4>
@@ -1696,7 +1778,19 @@ function ModelDiscriminationPanel({
             </div>
 
             <div className="tuning-discrimination-pair-card">
-              <h4>Focus - Baseline Delta</h4>
+              <div className="tuning-section-heading">
+                <h4>Focus - Baseline Delta</h4>
+                <InlineHelp title="Delta pair meaning">
+                  <p>
+                    Delta is computed cell-wise: `focus_surface - baseline_surface`.
+                    Positive cells mean higher success probability in focus model.
+                  </p>
+                  <p>
+                    Top is estimated delta, bottom is true delta. Matching patterns
+                    indicate the estimator captures the true model gap.
+                  </p>
+                </InlineHelp>
+              </div>
               <div className="tuning-discrimination-pair-stack">
                 <div className="tuning-canvas-panel">
                   <h4>Estimated Delta</h4>
@@ -1731,7 +1825,19 @@ function ModelDiscriminationPanel({
 
           <div className="tuning-discrimination-signal">
             <div className="tuning-canvas-panel">
-              <h4>Signal Map (Estimated Delta / pooled std)</h4>
+              <div className="tuning-section-heading">
+                <h4>Signal Map (Estimated Delta / pooled std)</h4>
+                <InlineHelp title="Signal map computation">
+                  <p>
+                    Signal map uses standardized effect size per grid cell:
+                    `estimated_delta / pooled_std`.
+                  </p>
+                  <p>
+                    `pooled_std = sqrt((std_baseline² + std_focus²) / 2)` across repeats.
+                    Larger absolute values mean more stable separation vs run noise.
+                  </p>
+                </InlineHelp>
+              </div>
               {focusSignalHeatmap ? (
                 <DeltaHeatmapCanvas
                   heatmap={focusSignalHeatmap}
@@ -1750,23 +1856,38 @@ function ModelDiscriminationPanel({
             so you can compare estimated vs true gap one-to-one.
           </p>
 
-          <div className="tuning-discrimination-crossings-grid">
-            <ContourCrossingsPanel
-              title="Baseline Estimated Contour Edge Crossings"
-              rows={baselineEstimatedCrossings}
-            />
-            <ContourCrossingsPanel
-              title="Baseline Ground Truth Contour Edge Crossings"
-              rows={baselineGroundTruthCrossings}
-            />
-            <ContourCrossingsPanel
-              title="Focus Estimated Contour Edge Crossings"
-              rows={focusEstimatedCrossings}
-            />
-            <ContourCrossingsPanel
-              title="Focus Ground Truth Contour Edge Crossings"
-              rows={focusGroundTruthCrossings}
-            />
+          <div className="tuning-discrimination-grid-wrap">
+            <div className="tuning-section-heading">
+              <h4>Contour Edge Crossing Tables</h4>
+              <InlineHelp title="Contour crossing extraction">
+                <p>
+                  For each contour level (26%, 75%, 90%, 100%), we compute where the
+                  contour intersects the four outer edges of the inspection window.
+                </p>
+                <p>
+                  Values are found by linear interpolation between adjacent edge samples.
+                  `none` means the contour does not hit that edge in current bounds.
+                </p>
+              </InlineHelp>
+            </div>
+            <div className="tuning-discrimination-crossings-grid">
+              <ContourCrossingsPanel
+                title="Baseline Estimated Contour Edge Crossings"
+                rows={baselineEstimatedCrossings}
+              />
+              <ContourCrossingsPanel
+                title="Baseline Ground Truth Contour Edge Crossings"
+                rows={baselineGroundTruthCrossings}
+              />
+              <ContourCrossingsPanel
+                title="Focus Estimated Contour Edge Crossings"
+                rows={focusEstimatedCrossings}
+              />
+              <ContourCrossingsPanel
+                title="Focus Ground Truth Contour Edge Crossings"
+                rows={focusGroundTruthCrossings}
+              />
+            </div>
           </div>
           {summary?.best_shift_is_baseline && (
             <p className="tuning-inspect-hint">
@@ -1775,6 +1896,19 @@ function ModelDiscriminationPanel({
             </p>
           )}
 
+          <div className="tuning-section-heading">
+            <h4>Experiment Summary Metrics</h4>
+            <InlineHelp title="Summary metrics definitions">
+              <p>
+                `Focus reliability` is baseline-vs-focus leave-one-out accuracy.
+                `Observable score` is normalized separation (signal-to-noise style).
+              </p>
+              <p>
+                `Best shift` is the candidate with strongest ranking score under
+                current sweep and repeats.
+              </p>
+            </InlineHelp>
+          </div>
           <div className="tuning-discrimination-stats">
             <div className="tuning-discrimination-stat">
               <span className="tuning-stat-label">Repeats</span>
@@ -1815,7 +1949,24 @@ function ModelDiscriminationPanel({
           </div>
 
           <div className="tuning-discrimination-grid-wrap">
-            <h4>Reliability Matrix (leave-one-out accuracy)</h4>
+            <div className="tuning-section-heading">
+              <h4>Reliability Matrix (leave-one-out accuracy)</h4>
+              <InlineHelp title="How reliability is classified">
+                <p>
+                  Feature space = full estimated heatmap grid (all cells).
+                  Distance metric = RMSE between surfaces.
+                </p>
+                <p>
+                  For each repeat, classification is nearest-centroid with leave-one-out:
+                  baseline sample vs baseline-LOO mean and candidate mean; candidate sample
+                  vs candidate-LOO mean and baseline mean.
+                </p>
+                <p>
+                  Reliability = correct classifications / total classifications
+                  across both baseline and candidate repeats.
+                </p>
+              </InlineHelp>
+            </div>
             <div className="tuning-discrimination-table-scroll">
               <table className="tuning-discrimination-grid">
                 <thead>
@@ -1864,7 +2015,22 @@ function ModelDiscriminationPanel({
           </div>
 
           <div className="tuning-discrimination-grid-wrap">
-            <h4>Candidate Ranking</h4>
+            <div className="tuning-section-heading">
+              <h4>Candidate Ranking</h4>
+              <InlineHelp title="Ranking features and formulas">
+                <p>
+                  Sorting priority: highest reliability, then highest observable score,
+                  then highest separation RMSE.
+                </p>
+                <p>
+                  `separation RMSE` = RMSE(candidate_mean, baseline_mean) x 100.
+                  `observable score` = separation / noise.
+                </p>
+                <p>
+                  `noise` = average of within-class RMSE-to-mean for baseline and candidate repeats.
+                </p>
+              </InlineHelp>
+            </div>
             <div className="tuning-discrimination-table-scroll">
               <table className="tuning-discrimination-ranking">
                 <thead>
@@ -1967,6 +2133,198 @@ function ContourCrossingsPanel({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+
+function InlineHelp({ title, children }) {
+  return (
+    <details className="tuning-inline-help">
+      <summary aria-label={`Help: ${title}`}>?</summary>
+      <div className="tuning-inline-help-popover">
+        <h6>{title}</h6>
+        <div className="tuning-inline-help-body">{children}</div>
+      </div>
+    </details>
+  );
+}
+
+
+function TuningHelpCenter() {
+  return (
+    <div className="tuning-help">
+      <div className="tuning-help-intro">
+        <h3>Tuning Page Guide</h3>
+        <p>
+          This page has two analysis modes. <strong>Progress vs Ground Truth</strong> shows how one
+          run evolves. <strong>Model Discrimination</strong> tests whether repeated runs can reliably
+          separate baseline from nearby shifted models.
+        </p>
+      </div>
+
+      <details className="tuning-help-block" open>
+        <summary>Quick Start</summary>
+        <ol className="tuning-help-list">
+          <li>Run simulation once to populate snapshots and post-run controls.</li>
+          <li>Adjust inspect bounds and brush radii (these affect both tabs).</li>
+          <li>Open Model Discrimination and run the discrimination experiment.</li>
+          <li>Use the focus-model dropdown to inspect any candidate visually.</li>
+          <li>Check reliability matrix + ranking to judge separability.</li>
+        </ol>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Post-run Controls (shared by all tabs)</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Inspect size/sat min/max:</strong> Analysis window. Heatmaps and metrics are
+            evaluated only in this window.
+          </p>
+          <p>
+            <strong>Brush inner/outer:</strong> Smoothing behavior for estimated surfaces.
+            Larger values smooth more; outer must be greater than inner.
+          </p>
+          <p>
+            <strong>Use final bounds:</strong> Reuses the pretest-discovered window from the run.
+          </p>
+          <p>
+            <strong>Use simulation space:</strong> Resets inspection to full global bounds.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Progress vs Ground Truth tab</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Algorithm Progress panel:</strong> Rectangles/dots from the algorithm state at
+            selected snapshot.
+          </p>
+          <p>
+            <strong>Ground Truth panel:</strong> Actual model probability surface in the same bounds.
+          </p>
+          <p>
+            <strong>Error score timeline:</strong> Snapshot-wise smoothed-surface mismatch
+            (MSE x 100) against ground truth.
+          </p>
+          <p>
+            <strong>Stats strip:</strong> Trial counts, probe counts, and discovered bounds.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Discrimination configuration</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Size/Sat shift min-max + steps:</strong> Candidate sweep grid.
+            Example: size shifts from -8 to +8 with 9 steps.
+          </p>
+          <p>
+            <strong>Surface steps:</strong> Resolution of estimated comparison surfaces.
+          </p>
+          <p>
+            <strong>Repeats/model:</strong> Number of independent full reruns per candidate.
+            Higher repeats improves reliability estimates.
+          </p>
+          <p>
+            <strong>Visual focus model:</strong> Chooses which candidate is shown in top
+            estimated/ground-truth visual pairs.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Discrimination visuals</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Baseline / Focus surfaces:</strong> Estimated (from repeated outcomes) vs
+            Ground Truth (actual generating model).
+          </p>
+          <p>
+            <strong>Delta pair:</strong> Focus - Baseline for estimated and true surfaces.
+            This is the direct gap comparison.
+          </p>
+          <p>
+            <strong>Signal map:</strong> Estimated delta divided by pooled run-to-run std.
+            Large absolute magnitude means stronger, more stable separation.
+          </p>
+          <p>
+            <strong>Color meaning:</strong> Red/green for probabilities; diverging red/blue for
+            signed deltas/signal.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Reliability Matrix table</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Rows/Columns:</strong> Sat shift (rows) and size shift (columns).
+          </p>
+          <p>
+            <strong>Cell value:</strong> Leave-one-out classification accuracy (%).
+            Higher means baseline vs that shifted candidate are easier to distinguish.
+          </p>
+          <p>
+            <strong>Baseline cell:</strong> Shift (0, 0); serves as reference.
+          </p>
+          <p>
+            <strong>Focus highlight:</strong> Candidate currently shown in the top visuals.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Candidate Ranking table</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Reliability:</strong> Same separability score as matrix, summarized per candidate.
+          </p>
+          <p>
+            <strong>Separation RMSE:</strong> Distance between candidate mean surface and baseline
+            mean surface.
+          </p>
+          <p>
+            <strong>Observable score:</strong> Separation normalized by noise. Higher is better.
+          </p>
+          <p>
+            <strong>Mean trials:</strong> Average number of sampled trials used in that candidate’s
+            repeated runs.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>Contour Edge Crossing tables</summary>
+        <div className="tuning-help-grid">
+          <p>
+            <strong>Levels:</strong> 26%, 75%, 90%, 100% probability contours.
+          </p>
+          <p>
+            <strong>Top/Bottom:</strong> X positions where each contour intersects
+            saturation max/min edges.
+          </p>
+          <p>
+            <strong>Left/Right:</strong> Saturation positions where each contour intersects
+            min/max size edges.
+          </p>
+          <p>
+            <strong>none:</strong> Contour never reaches that edge in the current inspection window.
+          </p>
+        </div>
+      </details>
+
+      <details className="tuning-help-block">
+        <summary>How to interpret quickly</summary>
+        <ol className="tuning-help-list">
+          <li>If Reliability is near 50%, models are not practically separable with this setup.</li>
+          <li>If Reliability and Observable score rise together, differences are likely real.</li>
+          <li>Check Estimated vs Ground Truth deltas: similar shapes indicate good recovery.</li>
+          <li>If contours diverge strongly in ground truth but not estimate, increase repeats or trials.</li>
+        </ol>
+      </details>
     </div>
   );
 }
