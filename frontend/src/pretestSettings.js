@@ -34,6 +34,7 @@ export const DEFAULT_PRETEST_SETTINGS = {
       horizontal: false,
       vertical: false,
     },
+    invert_colors: false,
   },
 };
 
@@ -77,7 +78,9 @@ export const normalizePretestSettings = (value) => {
         ...DEFAULT_PRETEST_SETTINGS.display.flip,
         ...(data.display?.flip ?? {}),
       },
+      invert_colors:
+        data.display?.invert_colors ??
+        DEFAULT_PRETEST_SETTINGS.display.invert_colors,
     },
   };
 };
-

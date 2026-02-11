@@ -49,8 +49,12 @@
 .play-test-container {
   position: fixed;
   inset: 0;
-  background: var(--background);
+  background: #ffffff;
   overflow: hidden;
+}
+
+.play-test-container.invert-colors {
+  background: #000000;
 }
 
 .play-loading-indicator {

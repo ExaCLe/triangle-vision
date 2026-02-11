@@ -20,6 +20,7 @@ def test_get_pretest_settings_returns_defaults(client: TestClient):
     assert data["display"]["eink"]["flash_color"] == "white"
     assert data["display"]["flip"]["horizontal"] is False
     assert data["display"]["flip"]["vertical"] is False
+    assert data["display"]["invert_colors"] is False
 
 
 def test_put_and_get_roundtrip(client: TestClient):
@@ -43,6 +44,7 @@ def test_put_and_get_roundtrip(client: TestClient):
                 "flash_duration_ms": 120,
             },
             "flip": {"horizontal": True, "vertical": False},
+            "invert_colors": True,
         },
     }
     put_response = client.put("/api/settings/pretest", json=updated)
@@ -61,6 +63,7 @@ def test_put_and_get_roundtrip(client: TestClient):
     assert data["display"]["eink"]["flash_color"] == "black"
     assert data["display"]["eink"]["flash_duration_ms"] == 120
     assert data["display"]["flip"]["horizontal"] is True
+    assert data["display"]["invert_colors"] is True
 
 
 def test_list_simulation_models(client: TestClient):

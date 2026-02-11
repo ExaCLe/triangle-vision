@@ -1,7 +1,11 @@
 import json
 from datetime import datetime
+import io
 import random
-from fastapi import APIRouter, Depends, HTTPException
+import base64
+import matplotlib
+import numpy as np
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -24,10 +28,68 @@ from algorithm_to_find_combinations.algorithm import (
     selection_probability,
 )
 from crud.algorithm_state import sync_algorithm_state, build_algorithm_rectangles
-from algorithm_to_find_combinations.ground_truth import simulate_trial, model_probability, compute_probability
+from algorithm_to_find_combinations.ground_truth import compute_probability
+from algorithm_to_find_combinations.plotting import create_single_smooth_plot
+from algorithm_to_find_combinations.axis_methods import (
+    AxisBounds,
+    build_axis_analysis,
+    choose_next_trial,
+)
 from routers.settings_router import _resolve_model
 
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 router = APIRouter(prefix="/runs", tags=["runs"])
+
+ADAPTIVE_METHOD = "adaptive_rectangles"
+AXIS_METHODS = {"axis_logistic", "axis_isotonic"}
+
+
+def _run_method(run: Run) -> str:
+    return run.method or ADAPTIVE_METHOD
+
+
+def _is_axis_method(run: Run) -> bool:
+    return _run_method(run) in AXIS_METHODS
+
+
+def _axis_bounds(db: Session) -> AxisBounds:
+    settings = get_pretest_settings(db)
+    limits = settings.global_limits
+    return AxisBounds(
+        size_min=limits.min_triangle_size,
+        size_max=limits.max_triangle_size,
+        saturation_min=limits.min_saturation,
+        saturation_max=limits.max_saturation,
+    )
+
+
+def _axis_trials_for_run(db: Session, run_id: int) -> List[TestCombination]:
+    return (
+        db.query(TestCombination)
+        .filter(TestCombination.run_id == run_id, TestCombination.phase == "axis")
+        .order_by(TestCombination.created_at.asc())
+        .all()
+    )
+
+
+def _run_response_payload(run: Run) -> dict:
+    return {
+        "id": run.id,
+        "test_id": run.test_id,
+        "name": run.name,
+        "method": _run_method(run),
+        "axis_switch_policy": run.axis_switch_policy,
+        "pretest_mode": run.pretest_mode,
+        "status": run.status,
+        "pretest_size_min": run.pretest_size_min,
+        "pretest_size_max": run.pretest_size_max,
+        "pretest_saturation_min": run.pretest_saturation_min,
+        "pretest_saturation_max": run.pretest_saturation_max,
+        "pretest_warnings": run.pretest_warnings,
+        "created_at": run.created_at,
+    }
 
 
 def _test_bounds_complete(test: Test) -> bool:
@@ -121,6 +183,7 @@ def _combination_counts(db: Session, *, test_id: int = None, run_id: int = None)
     total = query.count()
     pretest = query.filter(TestCombination.phase == "pretest").count()
     main = query.filter(TestCombination.phase == "main").count()
+    axis = query.filter(TestCombination.phase == "axis").count()
     correct = query.filter(TestCombination.success == 1).count()
     incorrect = query.filter(TestCombination.success == 0).count()
     success_rate = (correct / total) if total else None
@@ -128,6 +191,7 @@ def _combination_counts(db: Session, *, test_id: int = None, run_id: int = None)
         "total": total,
         "pretest": pretest,
         "main": main,
+        "axis": axis,
         "correct": correct,
         "incorrect": incorrect,
         "success_rate": success_rate,
@@ -212,12 +276,61 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
+    name = (run_data.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Run name is required")
+
+    duplicate = (
+        db.query(Run)
+        .filter(Run.test_id == run_data.test_id, Run.name == name)
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=422, detail="Run name must be unique for this test")
+
+    method = run_data.method
     run = Run(
         test_id=run_data.test_id,
+        name=name,
+        method=method,
+        axis_switch_policy=run_data.axis_switch_policy if method in AXIS_METHODS else None,
         pretest_mode=run_data.pretest_mode,
     )
 
-    if run_data.pretest_mode == "run":
+    if method in AXIS_METHODS:
+        has_adaptive_fields = any(
+            value is not None
+            for value in [
+                run_data.pretest_mode,
+                run_data.pretest_size_min,
+                run_data.pretest_size_max,
+                run_data.pretest_saturation_min,
+                run_data.pretest_saturation_max,
+                run_data.reuse_test_id,
+            ]
+        )
+        if has_adaptive_fields:
+            raise HTTPException(
+                status_code=422,
+                detail="Axis methods do not accept pretest/manual/reuse fields",
+            )
+        run.axis_switch_policy = run.axis_switch_policy or "uncertainty"
+        run.status = "axis"
+        run.pretest_mode = None
+        run.pretest_state_json = None
+        run.pretest_warnings = json.dumps([])
+    elif method == ADAPTIVE_METHOD:
+        if run_data.pretest_mode not in ("run", "manual", "reuse_last"):
+            raise HTTPException(
+                status_code=422,
+                detail="adaptive_rectangles requires pretest_mode (run, manual, or reuse_last)",
+            )
+        run.pretest_mode = run_data.pretest_mode
+        run.axis_switch_policy = None
+    else:
+        raise HTTPException(status_code=422, detail=f"Unknown run method: {method}")
+
+    if method == ADAPTIVE_METHOD and run_data.pretest_mode == "run":
         settings = get_pretest_settings(db)
         # If test bounds exist, use them; otherwise use configured global limits.
         if _test_bounds_complete(test):
@@ -230,7 +343,7 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
         run.pretest_state_json = json.dumps(serialize_pretest_state(pretest_state))
         run.pretest_warnings = json.dumps([])
 
-    elif run_data.pretest_mode == "manual":
+    elif method == ADAPTIVE_METHOD and run_data.pretest_mode == "manual":
         if (
             run_data.pretest_size_min is None
             or run_data.pretest_size_max is None
@@ -264,7 +377,7 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
         )
         run.status = "main"
 
-    elif run_data.pretest_mode == "reuse_last":
+    elif method == ADAPTIVE_METHOD and run_data.pretest_mode == "reuse_last":
         reuse_test_id: int = run_data.reuse_test_id or run_data.test_id
         reuse_test: Optional[Test] = (
             db.query(Test).filter(Test.id == reuse_test_id).first()
@@ -317,7 +430,7 @@ def create_run(run_data: RunCreate, db: Session = Depends(get_db)):
     db.add(run)
     db.commit()
     db.refresh(run)
-    return run
+    return _run_response_payload(run)
 
 
 @router.get("/{run_id}", response_model=RunResponse)
@@ -325,7 +438,7 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
     run = db.query(Run).filter(Run.id == run_id).first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    return run
+    return _run_response_payload(run)
 
 
 @router.get("/{run_id}/next")
@@ -340,6 +453,36 @@ def get_next_trial(run_id: int, db: Session = Depends(get_db)):
         .filter(TestCombination.run_id == run_id)
         .count()
     )
+
+    if _is_axis_method(run):
+        if run.status == "completed":
+            raise HTTPException(status_code=400, detail="Run is already completed")
+        bounds = _axis_bounds(db)
+        axis_trials = _axis_trials_for_run(db, run_id)
+        next_trial = choose_next_trial(
+            _run_method(run),
+            run.axis_switch_policy or "uncertainty",
+            [
+                {
+                    "triangle_size": c.triangle_size,
+                    "saturation": c.saturation,
+                    "success": c.success,
+                }
+                for c in axis_trials
+            ],
+            bounds,
+        )
+        return {
+            "test_id": run.test_id,
+            "run_id": run.id,
+            "rectangle_id": None,
+            "triangle_size": next_trial["triangle_size"],
+            "saturation": next_trial["saturation"],
+            "orientation": random.choice(ORIENTATIONS),
+            "success": 0,
+            "phase": "axis",
+            "total_samples": total_samples,
+        }
 
     if run.status == "pretest":
         pretest_state = _load_pretest_state(run)
@@ -416,6 +559,21 @@ def submit_run_result(run_id: int, result: RunTrialResult, db: Session = Depends
         raise HTTPException(status_code=404, detail="Run not found")
 
     success_bool = bool(result.success)
+
+    if _is_axis_method(run):
+        db_combination = TestCombination(
+            test_id=run.test_id,
+            run_id=run.id,
+            triangle_size=result.triangle_size,
+            saturation=result.saturation,
+            orientation=result.orientation,
+            success=result.success,
+            phase="axis",
+            rectangle_id=None,
+        )
+        db.add(db_combination)
+        db.commit()
+        return {"message": "Axis result recorded", "phase": "axis"}
 
     if run.status == "pretest":
         pretest_state = _load_pretest_state(run)
@@ -545,16 +703,7 @@ def get_run_summary(run_id: int, db: Session = Depends(get_db)):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    pretest_count = (
-        db.query(TestCombination)
-        .filter(TestCombination.run_id == run_id, TestCombination.phase == "pretest")
-        .count()
-    )
-    main_count = (
-        db.query(TestCombination)
-        .filter(TestCombination.run_id == run_id, TestCombination.phase == "main")
-        .count()
-    )
+    counts = _combination_counts(db, run_id=run_id)
 
     pretest_bounds = None
     if run.pretest_size_min is not None:
@@ -575,14 +724,171 @@ def get_run_summary(run_id: int, db: Session = Depends(get_db)):
     return RunSummary(
         id=run.id,
         test_id=run.test_id,
+        name=run.name,
+        method=_run_method(run),
+        axis_switch_policy=run.axis_switch_policy,
         status=run.status,
         pretest_mode=run.pretest_mode,
         pretest_bounds=pretest_bounds,
         pretest_warnings=warnings,
-        pretest_trial_count=pretest_count,
-        main_trials_count=main_count,
-        total_trials_count=pretest_count + main_count,
+        pretest_trial_count=counts["pretest"],
+        main_trials_count=counts["main"],
+        axis_trials_count=counts["axis"],
+        total_trials_count=counts["total"],
     )
+
+
+def _adaptive_run_analysis_payload(run: Run, test: Test, db: Session) -> dict:
+    combinations = (
+        db.query(TestCombination)
+        .filter(TestCombination.run_id == run.id)
+        .order_by(TestCombination.created_at.asc())
+        .all()
+    )
+    counts = _combination_counts(db, run_id=run.id)
+
+    if not combinations:
+        return {
+            "analysis_type": "adaptive_surface",
+            "trial_counts": counts,
+            "plot": None,
+        }
+
+    size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    threshold = 0.75
+    step = 10.0
+
+    combo_payload = [
+        {
+            "triangle_size": c.triangle_size,
+            "saturation": c.saturation,
+            "success": c.success,
+        }
+        for c in combinations
+    ]
+
+    image = None
+    plot_data = []
+    try:
+        X_s, Y_s, Z_s = create_single_smooth_plot(
+            combo_payload,
+            size_bounds,
+            sat_bounds,
+            smoothing_method="soft_brush",
+            ax=ax,
+            rectangles=None,
+            threshold=threshold,
+        )
+
+        try:
+            CS = ax.contour(X_s, Y_s, Z_s, levels=[threshold], colors="none")
+            segments = CS.allsegs[0]
+            tol = step / 2.0
+            for x_val in np.arange(size_bounds[0], size_bounds[1] + step, step):
+                sat_candidates = []
+                for seg in segments:
+                    matching = seg[abs(seg[:, 0] - x_val) <= tol]
+                    if matching.size:
+                        sat_candidates.extend(matching[:, 1].tolist())
+                if sat_candidates:
+                    plot_data.append(
+                        {
+                            "triangle_size": float(round(x_val, 2)),
+                            "saturation": float(min(sat_candidates)),
+                        }
+                    )
+        except Exception:
+            plot_data = []
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", dpi=300)
+        buf.seek(0)
+        image = base64.b64encode(buf.getvalue()).decode("utf-8")
+    except Exception:
+        image = None
+        plot_data = []
+    finally:
+        plt.close(fig)
+
+    return {
+        "analysis_type": "adaptive_surface",
+        "trial_counts": counts,
+        "plot": {
+            "threshold": threshold,
+            "step": step,
+            "image": image,
+            "plot_data": plot_data,
+        },
+    }
+
+
+@router.get("/{run_id}/analysis")
+def get_run_analysis(
+    run_id: int,
+    percent_step: int = Query(default=5, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    test = db.query(Test).filter(Test.id == run.test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    if _is_axis_method(run):
+        bounds = _axis_bounds(db)
+        axis_trials = _axis_trials_for_run(db, run_id)
+        analysis = build_axis_analysis(
+            _run_method(run),
+            [
+                {
+                    "triangle_size": c.triangle_size,
+                    "saturation": c.saturation,
+                    "success": c.success,
+                }
+                for c in axis_trials
+            ],
+            bounds,
+            percent_step=percent_step,
+        )
+        return {
+            "run": {
+                "id": run.id,
+                "name": run.name,
+                "method": _run_method(run),
+                "axis_switch_policy": run.axis_switch_policy,
+                "status": run.status,
+            },
+            "bounds": {
+                "size_min": bounds.size_min,
+                "size_max": bounds.size_max,
+                "saturation_min": bounds.saturation_min,
+                "saturation_max": bounds.saturation_max,
+            },
+            **analysis,
+        }
+
+    adaptive_payload = _adaptive_run_analysis_payload(run, test, db)
+    size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
+    return {
+        "run": {
+            "id": run.id,
+            "name": run.name,
+            "method": _run_method(run),
+            "axis_switch_policy": run.axis_switch_policy,
+            "status": run.status,
+            "pretest_mode": run.pretest_mode,
+        },
+        "bounds": {
+            "size_min": size_bounds[0],
+            "size_max": size_bounds[1],
+            "saturation_min": sat_bounds[0],
+            "saturation_max": sat_bounds[1],
+        },
+        **adaptive_payload,
+    }
 
 
 @router.get("/{run_id}/debug")
@@ -616,7 +922,15 @@ def get_run_debug(run_id: int, db: Session = Depends(get_db)):
             "saturation_max": test.max_saturation,
         }
 
-    if run.status == "pretest":
+    if _is_axis_method(run):
+        active_bounds = {
+            "size_min": global_limits.min_triangle_size,
+            "size_max": global_limits.max_triangle_size,
+            "saturation_min": global_limits.min_saturation,
+            "saturation_max": global_limits.max_saturation,
+        }
+        active_source = "global"
+    elif run.status == "pretest":
         active_bounds = {
             "size_min": global_limits.min_triangle_size,
             "size_max": global_limits.max_triangle_size,
@@ -640,7 +954,7 @@ def get_run_debug(run_id: int, db: Session = Depends(get_db)):
             active_source = "global"
 
     pretest_state = None
-    if run.pretest_state_json:
+    if not _is_axis_method(run) and run.pretest_state_json:
         pretest_state_obj = _load_pretest_state(run)
         if pretest_state_obj is not None:
             pretest_state = serialize_pretest_state(pretest_state_obj)
@@ -665,6 +979,9 @@ def get_run_debug(run_id: int, db: Session = Depends(get_db)):
         "phase": run.status,
         "run": {
             "id": run.id,
+            "name": run.name,
+            "method": _run_method(run),
+            "axis_switch_policy": run.axis_switch_policy,
             "status": run.status,
             "pretest_mode": run.pretest_mode,
             "pretest_bounds": run_bounds,
@@ -697,7 +1014,7 @@ def get_run_debug(run_id: int, db: Session = Depends(get_db)):
             "probe_rule": settings.probe_rule.model_dump(),
             "search": settings.search.model_dump(),
         },
-        "rectangles": _rectangle_debug(db, test.id),
+        "rectangles": _rectangle_debug(db, test.id) if not _is_axis_method(run) else None,
         "pretest_state": pretest_state,
         "last_result": {
             "triangle_size": last_result.triangle_size,
@@ -721,7 +1038,7 @@ def get_runs_for_test(test_id: int, db: Session = Depends(get_db)):
         .order_by(Run.created_at.desc())
         .all()
     )
-    return runs
+    return [_run_response_payload(run) for run in runs]
 
 
 class SimulateRequest(BaseModel):
@@ -751,42 +1068,24 @@ def simulate_trials(run_id: int, req: SimulateRequest, db: Session = Depends(get
     if not test:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    settings = get_pretest_settings(db)
-    global_limits = settings.global_limits
-
     results = []
     for _ in range(req.count):
         # Re-load run each iteration so status transitions are visible.
         db.refresh(run)
-        if run.status not in ("pretest", "main"):
+        if run.status == "completed":
             break
 
-        # ---- get next trial ------------------------------------------------
-        if run.status == "pretest":
-            pretest_state = _load_pretest_state(run)
-            if pretest_state is None or pretest_state.is_complete:
-                break
-            trial = get_pretest_trial(pretest_state)
-            trial_data = {
-                "triangle_size": trial["triangle_size"],
-                "saturation": trial["saturation"],
-                "orientation": trial["orientation"],
-            }
-            phase = "pretest"
-        else:
-            size_bounds, sat_bounds = _resolve_run_bounds(run, test, db)
-            rectangles = build_algorithm_rectangles(db, run.test_id)
-            state = AlgorithmState(size_bounds, sat_bounds, rectangles if rectangles else None)
-            combination, selected_rect = get_next_combination(state)
-            if not combination:
-                break
-            sync_algorithm_state(state, run.test_id, db)
-            trial_data = {
-                "triangle_size": combination["triangle_size"],
-                "saturation": combination["saturation"],
-                "orientation": random.choice(ORIENTATIONS),
-            }
-            phase = "main"
+        try:
+            next_trial = get_next_trial(run_id, db)
+        except HTTPException:
+            break
+
+        trial_data = {
+            "triangle_size": next_trial["triangle_size"],
+            "saturation": next_trial["saturation"],
+            "orientation": next_trial["orientation"],
+        }
+        phase = next_trial.get("phase", run.status)
 
         # ---- sample ground truth -------------------------------------------
         entry = _resolve_model(req.model_name, db)

@@ -3,6 +3,8 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from typing import Literal, Optional, List, Dict, Any
 
 ORIENTATIONS = ["N", "E", "S", "W"]
+RunMethod = Literal["adaptive_rectangles", "axis_logistic", "axis_isotonic"]
+AxisSwitchPolicy = Literal["uncertainty", "alternate"]
 
 
 class TestBase(BaseModel):
@@ -101,7 +103,10 @@ class TestCombinationResponse(TestCombinationBase):
 
 class RunCreate(BaseModel):
     test_id: int
-    pretest_mode: Literal["run", "reuse_last", "manual"]
+    name: str
+    method: RunMethod
+    pretest_mode: Optional[Literal["run", "reuse_last", "manual"]] = None
+    axis_switch_policy: Optional[AxisSwitchPolicy] = None
     pretest_size_min: Optional[float] = None
     pretest_size_max: Optional[float] = None
     pretest_saturation_min: Optional[float] = None
@@ -112,7 +117,10 @@ class RunCreate(BaseModel):
 class RunResponse(BaseModel):
     id: int
     test_id: int
-    pretest_mode: str
+    name: Optional[str] = None
+    method: RunMethod
+    axis_switch_policy: Optional[AxisSwitchPolicy] = None
+    pretest_mode: Optional[str] = None
     status: str
     pretest_size_min: Optional[float] = None
     pretest_size_max: Optional[float] = None
@@ -127,12 +135,16 @@ class RunResponse(BaseModel):
 class RunSummary(BaseModel):
     id: int
     test_id: int
+    name: Optional[str] = None
+    method: RunMethod = "adaptive_rectangles"
+    axis_switch_policy: Optional[AxisSwitchPolicy] = None
     status: str
-    pretest_mode: str
+    pretest_mode: Optional[str] = None
     pretest_bounds: Optional[Dict[str, Any]] = None
     pretest_warnings: Optional[List[str]] = None
     pretest_trial_count: int = 0
     main_trials_count: int = 0
+    axis_trials_count: int = 0
     total_trials_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)

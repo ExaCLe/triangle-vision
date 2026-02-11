@@ -42,6 +42,7 @@ class DisplaySettings(BaseModel):
     masking: DisplayMaskingSettings = Field(default_factory=DisplayMaskingSettings)
     eink: DisplayEInkSettings = Field(default_factory=DisplayEInkSettings)
     flip: DisplayFlipSettings = Field(default_factory=DisplayFlipSettings)
+    invert_colors: bool = False
 
 
 class SimulationSettings(BaseModel):

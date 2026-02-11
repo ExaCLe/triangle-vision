@@ -4,6 +4,50 @@
   max-width: 550px;
 }
 
+.entry-mode-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.run-config-section {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.config-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.empty-run-note {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
 .run-mode-options {
   display: flex;
   flex-direction: column;

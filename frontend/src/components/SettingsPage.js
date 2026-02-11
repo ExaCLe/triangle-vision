@@ -319,6 +319,33 @@ function SettingsPage({ onSimulationChange }) {
       </div>
 
       <div className="settings-section">
+        <h3>Visual Contrast</h3>
+        <div className="settings-grid">
+          <div className="setting-field setting-toggle">
+            <div className="setting-toggle-row">
+              <label>Invert playtest colors</label>
+              <input
+                type="checkbox"
+                checked={settings.display.invert_colors ?? false}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    display: {
+                      ...settings.display,
+                      invert_colors: e.target.checked,
+                    },
+                  })
+                }
+              />
+            </div>
+            <span className="setting-help">
+              Default is white background with dark stimulus; enable to invert.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
         <h3>E-Ink Mode</h3>
         <div className="settings-grid">
           <div className="setting-field setting-toggle">
@@ -510,4 +537,3 @@ function SettingsPage({ onSimulationChange }) {
 }
 
 export default SettingsPage;
-

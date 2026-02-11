@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useTheme } from "../context/ThemeContext";
 import Content from "./Content";
 import { applyOrientationFlip, orientationFromArrowKey } from "../helpers";
 import { normalizePretestSettings } from "../pretestSettings";
@@ -11,7 +10,6 @@ function PlayTest() {
   const [currentTest, setCurrentTest] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [startTime, setStartTime] = useState(null);
-  const { theme } = useTheme();
   const [totalSamples, setTotalSamples] = useState(0);
   const [currentPhase, setCurrentPhase] = useState("main");
   const [debugEnabled, setDebugEnabled] = useState(true);
@@ -273,6 +271,13 @@ function PlayTest() {
   ]);
 
   useEffect(() => {
+    document.body.classList.add("playtest-active");
+    return () => {
+      document.body.classList.remove("playtest-active");
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchSettings = async () => {
       try {
         const response = await fetch(
@@ -461,6 +466,7 @@ function PlayTest() {
   const pretestState = debugData?.pretest_state || null;
   const pretestWarnings = debugData?.run?.pretest_warnings || [];
   const lastResult = debugData?.last_result || null;
+  const invertColors = Boolean(displaySettings?.invert_colors);
 
   return (
     <>
@@ -523,7 +529,11 @@ function PlayTest() {
                 {runId
                   ? `#${debugData?.run?.id ?? runId} | ${
                       debugData?.run?.status || "N/A"
-                    } | ${debugData?.run?.pretest_mode || "N/A"}`
+                    } | ${
+                      debugData?.run?.method ||
+                      debugData?.run?.pretest_mode ||
+                      "N/A"
+                    }`
                   : `Test #${debugData?.test?.id ?? testId}`}
               </div>
               <div className="debug-stat-hint">
@@ -552,7 +562,8 @@ function PlayTest() {
                 </div>
                 <div className="debug-stat-hint">
                   total {runCounts.total} | pretest {runCounts.pretest} | main{" "}
-                  {runCounts.main} | rate {formatPercent(runCounts.success_rate)}
+                  {runCounts.main} | axis {runCounts.axis ?? 0} | rate{" "}
+                  {formatPercent(runCounts.success_rate)}
                 </div>
               </div>
             )}
@@ -565,7 +576,8 @@ function PlayTest() {
                 </div>
                 <div className="debug-stat-hint">
                   total {testCounts.total} | pretest {testCounts.pretest} | main{" "}
-                  {testCounts.main} | rate {formatPercent(testCounts.success_rate)}
+                  {testCounts.main} | axis {testCounts.axis ?? 0} | rate{" "}
+                  {formatPercent(testCounts.success_rate)}
                 </div>
               </div>
             )}
@@ -837,7 +849,11 @@ function PlayTest() {
           <div className="play-info">
             <span className="sample-count">#{totalSamples}</span>
             <Link
-              to={`/test-visualization/${testId}`}
+              to={
+                runId
+                  ? `/test-visualization/${testId}?runId=${runId}`
+                  : `/test-visualization/${testId}`
+              }
               className="btn btn-outline btn-icon"
             >
               <span className="icon">📊</span>
@@ -845,7 +861,7 @@ function PlayTest() {
           </div>
         </div>
       )}
-      <div className="play-test-container">
+      <div className={`play-test-container ${invertColors ? "invert-colors" : ""}`}>
         {stimulusPhase === "stimulus" && currentTest ? (
           <Content
             sideLength={currentTest.triangle_size}
@@ -854,9 +870,10 @@ function PlayTest() {
             colorTriangle={hslToRgb(
               0,
               0,
-              theme === "light"
-                ? (1 - currentTest.saturation) * 100
-                : currentTest.saturation * 100
+              invertColors
+                ? Math.max(0, Math.min(1, Number(currentTest.saturation) || 0)) * 100
+                : (1 - Math.max(0, Math.min(1, Number(currentTest.saturation) || 0))) *
+                    100
             )}
             orientation={currentTest.orientation}
           />
