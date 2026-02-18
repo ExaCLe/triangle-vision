@@ -42,7 +42,10 @@ class Run(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     test_id = Column(Integer, ForeignKey("tests.id"), nullable=False)
-    pretest_mode = Column(String, nullable=False)  # "run", "reuse_last", "manual"
+    name = Column(String, nullable=True)
+    method = Column(String, nullable=False, default="adaptive_rectangles")
+    axis_switch_policy = Column(String, nullable=True)
+    pretest_mode = Column(String, nullable=True)  # "run", "reuse_last", "manual"
     status = Column(String, nullable=False, default="pretest")  # "pretest", "main", "completed"
     pretest_size_min = Column(Float, nullable=True)
     pretest_size_max = Column(Float, nullable=True)

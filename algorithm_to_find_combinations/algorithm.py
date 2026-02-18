@@ -19,6 +19,29 @@ def hsv_to_rgb(h, s, v):
     return int(r * 255), int(g * 255), int(b * 255)
 
 
+def _in_child_bounds(value, lower, upper, parent_upper, eps=1e-9):
+    """Half-open bounds for children, closed on the parent's max edge."""
+    return (value >= lower - eps) and (
+        value < upper - eps or abs(upper - parent_upper) <= eps
+    )
+
+
+def _assign_sample_to_child(sample, children, parent_bounds):
+    ts = sample["triangle_size"]
+    sat = sample["saturation"]
+    parent_ts_max = parent_bounds["triangle_size"][1]
+    parent_sat_max = parent_bounds["saturation"][1]
+
+    for child in children:
+        ts_min, ts_max = child["bounds"]["triangle_size"]
+        sat_min, sat_max = child["bounds"]["saturation"]
+        if _in_child_bounds(ts, ts_min, ts_max, parent_ts_max) and _in_child_bounds(
+            sat, sat_min, sat_max, parent_sat_max
+        ):
+            return child
+    return None
+
+
 def split_rectangle(rect):
     bounds = rect["bounds"]
     midpoints = {k: (v[0] + v[1]) / 2 for k, v in bounds.items()}
@@ -44,8 +67,20 @@ def split_rectangle(rect):
                     "area": rect["area"] / 4,
                     "true_samples": 0,
                     "false_samples": 0,
+                    "samples": [],
                 }
             )
+
+    # Preserve history by redistributing the parent rectangle's samples.
+    for sample in rect.get("samples", []):
+        child = _assign_sample_to_child(sample, new_rects, bounds)
+        if child is None:
+            continue
+        child["samples"].append(sample)
+        if sample["success"]:
+            child["true_samples"] += 1
+        else:
+            child["false_samples"] += 1
     return new_rects
 
 
@@ -66,6 +101,7 @@ class AlgorithmState:
                     "area": 1.0,
                     "true_samples": 0,
                     "false_samples": 0,
+                    "samples": [],
                 }
             ]
             self.new_rectangles.append(self.rectangles[0])
@@ -100,12 +136,24 @@ def update_state(
     success: bool,
     success_rate_threshold=0.85,
     total_samples_threshold=5,
+    max_samples=60,
+    record_sample=True,
 ):
     """Update algorithm state based on test result"""
-    if success:
-        selected_rect["true_samples"] += 1
-    else:
-        selected_rect["false_samples"] += 1
+    if "samples" not in selected_rect or selected_rect["samples"] is None:
+        selected_rect["samples"] = []
+
+    if record_sample:
+        sample = {
+            "triangle_size": combination["triangle_size"],
+            "saturation": combination["saturation"],
+            "success": bool(success),
+        }
+        selected_rect["samples"].append(sample)
+        if success:
+            selected_rect["true_samples"] += 1
+        else:
+            selected_rect["false_samples"] += 1
 
     total_samples = selected_rect["true_samples"] + selected_rect["false_samples"]
     success_rate = (
@@ -116,7 +164,7 @@ def update_state(
     if (
         success_rate < success_rate_threshold
         and total_samples > total_samples_threshold
-    ) or total_samples > 60:
+    ) or total_samples > max_samples:
         new_rects = split_rectangle(selected_rect)
         state.rectangles.remove(selected_rect)
         state.rectangles.extend(new_rects)

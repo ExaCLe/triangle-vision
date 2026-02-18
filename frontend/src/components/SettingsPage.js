@@ -7,7 +7,7 @@ const parseNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-function SettingsPage() {
+function SettingsPage({ onSimulationChange }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +41,9 @@ function SettingsPage() {
       const data = await response.json();
       setSettings(normalizePretestSettings(data));
       setMessage({ type: "success", text: "Settings saved successfully" });
+      if (onSimulationChange) {
+        onSimulationChange(!!data?.simulation?.enabled);
+      }
     } catch {
       setMessage({ type: "error", text: "Failed to save settings" });
     } finally {
@@ -316,6 +319,33 @@ function SettingsPage() {
       </div>
 
       <div className="settings-section">
+        <h3>Visual Contrast</h3>
+        <div className="settings-grid">
+          <div className="setting-field setting-toggle">
+            <div className="setting-toggle-row">
+              <label>Invert playtest colors</label>
+              <input
+                type="checkbox"
+                checked={settings.display.invert_colors ?? false}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    display: {
+                      ...settings.display,
+                      invert_colors: e.target.checked,
+                    },
+                  })
+                }
+              />
+            </div>
+            <span className="setting-help">
+              Default is white background with dark stimulus; enable to invert.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
         <h3>E-Ink Mode</h3>
         <div className="settings-grid">
           <div className="setting-field setting-toggle">
@@ -507,4 +537,3 @@ function SettingsPage() {
 }
 
 export default SettingsPage;
-

@@ -49,8 +49,12 @@
 .play-test-container {
   position: fixed;
   inset: 0;
-  background: var(--background);
+  background: #ffffff;
   overflow: hidden;
+}
+
+.play-test-container.invert-colors {
+  background: #000000;
 }
 
 .play-loading-indicator {
@@ -350,11 +354,24 @@
   -webkit-backdrop-filter: blur(10px);
 }
 
+.simulation-bar-with-heatmap {
+  padding: 0.5rem 1rem;
+}
+
 .simulation-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.simulation-controls {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .simulation-bar-label {
@@ -425,4 +442,55 @@
   font-size: 0.66rem;
   color: var(--text-secondary);
   font-family: var(--font-mono);
+}
+
+/* ═══ Simulation Heatmap ═══ */
+
+.simulation-heatmap-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.simulation-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.58rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.sim-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.sim-legend-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+}
+
+.sim-legend-correct {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #666;
+}
+
+.sim-legend-incorrect {
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid #999;
+}
+
+.sim-legend-x {
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sim-legend-count {
+  opacity: 0.6;
 }

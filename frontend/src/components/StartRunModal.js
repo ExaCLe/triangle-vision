@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../css/StartRunModal.css";
 
@@ -17,19 +17,25 @@ const hasBounds = (candidate) =>
 
 function StartRunModal({ isOpen, onClose, test, onRunCreated }) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("run");
+  const [entryMode, setEntryMode] = useState("create");
+  const [runName, setRunName] = useState("");
+  const [method, setMethod] = useState("adaptive_rectangles");
+  const [axisSwitchPolicy, setAxisSwitchPolicy] = useState("uncertainty");
+  const [adaptiveMode, setAdaptiveMode] = useState("run");
   const [manualBounds, setManualBounds] = useState({
     pretest_size_min: "",
     pretest_size_max: "",
     pretest_saturation_min: "",
     pretest_saturation_max: "",
   });
-  const [lastRunBounds, setLastRunBounds] = useState(null);
   const [sourceTests, setSourceTests] = useState([]);
   const [reuseTestId, setReuseTestId] = useState(null);
+  const [lastRunBounds, setLastRunBounds] = useState(null);
+  const [existingRuns, setExistingRuns] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const autoStartAttemptedRef = useRef(false);
+
   const reuseCandidates =
     sourceTests.length > 0 ? sourceTests : test ? [test] : [];
   const selectedSourceTest = reuseCandidates.find(
@@ -46,122 +52,67 @@ function StartRunModal({ isOpen, onClose, test, onRunCreated }) {
   const reusableBounds = lastRunBounds || storedSourceBounds;
   const canReuse = Boolean(reusableBounds);
 
-  const startRun = async (selectedMode, selectedReuseTestId) => {
-    if (!test) return;
-    setLoading(true);
+  const canContinue = existingRuns.length > 0 && selectedRunId != null;
+  const selectedRun = useMemo(
+    () => existingRuns.find((run) => run.id === selectedRunId),
+    [existingRuns, selectedRunId]
+  );
+
+  useEffect(() => {
+    if (!isOpen || !test) return;
     setError(null);
+    setLoading(false);
+    setEntryMode("create");
+    setRunName(`${test.title} run`);
+    setMethod("adaptive_rectangles");
+    setAxisSwitchPolicy("uncertainty");
+    setAdaptiveMode("run");
+    setReuseTestId(test.id);
+    setLastRunBounds(null);
+    setExistingRuns([]);
+    setSelectedRunId(null);
 
-    try {
-      const body = {
-        test_id: test.id,
-        pretest_mode: selectedMode,
-      };
-
-      if (selectedMode === "manual") {
-        const parsedBounds = {
-          pretest_size_min: parseFloat(manualBounds.pretest_size_min),
-          pretest_size_max: parseFloat(manualBounds.pretest_size_max),
-          pretest_saturation_min: parseFloat(manualBounds.pretest_saturation_min),
-          pretest_saturation_max: parseFloat(manualBounds.pretest_saturation_max),
-        };
-        const hasNaN = Object.values(parsedBounds).some((v) => Number.isNaN(v));
-        if (hasNaN) {
-          throw new Error("Please enter all four manual bounds.");
+    Promise.all([
+      fetch("http://localhost:8000/api/tests/").then((res) =>
+        res.ok ? res.json() : []
+      ),
+      fetch("http://localhost:8000/api/settings/pretest").then((res) =>
+        res.ok ? res.json() : null
+      ),
+      fetch(`http://localhost:8000/api/runs/test/${test.id}`).then((res) =>
+        res.ok ? res.json() : []
+      ),
+    ])
+      .then(([tests, settings, runs]) => {
+        const testsList = Array.isArray(tests) ? tests : [];
+        const runList = Array.isArray(runs) ? runs : [];
+        setSourceTests(testsList);
+        setExistingRuns(runList);
+        if (runList.length > 0) {
+          setSelectedRunId(runList[0].id);
         }
-        if (parsedBounds.pretest_size_min > parsedBounds.pretest_size_max) {
-          throw new Error("Size Min must be less than or equal to Size Max.");
-        }
-        if (
-          parsedBounds.pretest_saturation_min >
-          parsedBounds.pretest_saturation_max
-        ) {
-          throw new Error(
-            "Saturation Min must be less than or equal to Saturation Max."
-          );
-        }
-        Object.assign(body, parsedBounds);
-      }
 
-      if (selectedMode === "reuse_last") {
-        body.reuse_test_id = selectedReuseTestId ?? test.id;
-      }
-
-      const response = await fetch("http://localhost:8000/api/runs/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "Failed to create run");
-      }
-
-      const run = await response.json();
-      if (onRunCreated) {
-        onRunCreated(run);
-      }
-      onClose();
-      navigate(`/play-test/${test.id}/run/${run.id}`);
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen && test) {
-      setMode("run");
-      setError(null);
-      setReuseTestId(test.id);
-      setLastRunBounds(null);
-
-      Promise.all([
-        fetch("http://localhost:8000/api/tests/").then((res) =>
-          res.ok ? res.json() : []
-        ),
-        fetch("http://localhost:8000/api/settings/pretest").then((res) =>
-          res.ok ? res.json() : null
-        ),
-      ])
-        .then(([tests, settings]) => {
-          const testsList = Array.isArray(tests) ? tests : [];
-          setSourceTests(testsList);
-          const limits = settings?.global_limits || {};
-          setManualBounds({
-            pretest_size_min:
-              test.min_triangle_size ?? limits.min_triangle_size ?? "",
-            pretest_size_max:
-              test.max_triangle_size ?? limits.max_triangle_size ?? "",
-            pretest_saturation_min:
-              test.min_saturation ?? limits.min_saturation ?? "",
-            pretest_saturation_max:
-              test.max_saturation ?? limits.max_saturation ?? "",
-          });
-          if (hasBounds(test)) {
-            setMode("reuse_last");
-          }
-        })
-        .catch(() => {
-          setSourceTests([]);
-          setManualBounds({
-            pretest_size_min: test.min_triangle_size ?? "",
-            pretest_size_max: test.max_triangle_size ?? "",
-            pretest_saturation_min: test.min_saturation ?? "",
-            pretest_saturation_max: test.max_saturation ?? "",
-          });
-          if (hasBounds(test)) {
-            setMode("reuse_last");
-          }
+        const limits = settings?.global_limits || {};
+        setManualBounds({
+          pretest_size_min: test.min_triangle_size ?? limits.min_triangle_size ?? "",
+          pretest_size_max: test.max_triangle_size ?? limits.max_triangle_size ?? "",
+          pretest_saturation_min:
+            test.min_saturation ?? limits.min_saturation ?? "",
+          pretest_saturation_max:
+            test.max_saturation ?? limits.max_saturation ?? "",
         });
-    }
+      })
+      .catch(() => {
+        setSourceTests([]);
+        setExistingRuns([]);
+        setManualBounds({
+          pretest_size_min: test.min_triangle_size ?? "",
+          pretest_size_max: test.max_triangle_size ?? "",
+          pretest_saturation_min: test.min_saturation ?? "",
+          pretest_saturation_max: test.max_saturation ?? "",
+        });
+      });
   }, [isOpen, test]);
-
-  useEffect(() => {
-    autoStartAttemptedRef.current = false;
-  }, [isOpen, test?.id]);
 
   useEffect(() => {
     if (!isOpen || reuseTestId === null || reuseTestId === undefined) return;
@@ -185,181 +136,383 @@ function StartRunModal({ isOpen, onClose, test, onRunCreated }) {
             saturation_min: completedRun.pretest_saturation_min,
             saturation_max: completedRun.pretest_saturation_max,
           });
-          if (reuseTestId === test?.id) {
-            setMode((previousMode) =>
-              previousMode === "run" ? "reuse_last" : previousMode
-            );
-          }
         } else {
           setLastRunBounds(null);
         }
       })
       .catch(() => setLastRunBounds(null));
-  }, [isOpen, reuseTestId, test?.id]);
+  }, [isOpen, reuseTestId]);
 
-  useEffect(() => {
-    if (!isOpen || !test || autoStartAttemptedRef.current) return;
-    const hasOwnSavedBounds = hasBounds(test);
-    const hasOwnLastRunBounds =
-      Boolean(lastRunBounds) && (reuseTestId ?? test.id) === test.id;
-    if (!hasOwnSavedBounds && !hasOwnLastRunBounds) return;
+  const startNewRun = async () => {
+    if (!test) return;
+    const trimmedName = runName.trim();
+    if (!trimmedName) {
+      setError("Please enter a run name.");
+      return;
+    }
 
-    autoStartAttemptedRef.current = true;
-    startRun("reuse_last", test.id).catch(() => {
-      autoStartAttemptedRef.current = false;
-    });
-  }, [isOpen, test, lastRunBounds, reuseTestId]);
+    setLoading(true);
+    setError(null);
 
-  const handleStart = async () => {
-    await startRun(mode, reuseTestId ?? test?.id);
+    try {
+      const body = {
+        test_id: test.id,
+        name: trimmedName,
+        method,
+      };
+
+      if (method === "adaptive_rectangles") {
+        body.pretest_mode = adaptiveMode;
+        if (adaptiveMode === "manual") {
+          const parsedBounds = {
+            pretest_size_min: parseFloat(manualBounds.pretest_size_min),
+            pretest_size_max: parseFloat(manualBounds.pretest_size_max),
+            pretest_saturation_min: parseFloat(manualBounds.pretest_saturation_min),
+            pretest_saturation_max: parseFloat(manualBounds.pretest_saturation_max),
+          };
+          const hasNaN = Object.values(parsedBounds).some((v) => Number.isNaN(v));
+          if (hasNaN) {
+            throw new Error("Please enter all four manual bounds.");
+          }
+          if (parsedBounds.pretest_size_min > parsedBounds.pretest_size_max) {
+            throw new Error("Size Min must be less than or equal to Size Max.");
+          }
+          if (
+            parsedBounds.pretest_saturation_min >
+            parsedBounds.pretest_saturation_max
+          ) {
+            throw new Error(
+              "Saturation Min must be less than or equal to Saturation Max."
+            );
+          }
+          Object.assign(body, parsedBounds);
+        }
+        if (adaptiveMode === "reuse_last") {
+          body.reuse_test_id = reuseTestId ?? test.id;
+        }
+      } else {
+        body.axis_switch_policy = axisSwitchPolicy;
+      }
+
+      const response = await fetch("http://localhost:8000/api/runs/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || "Failed to create run");
+      }
+
+      const run = await response.json();
+      if (onRunCreated) {
+        onRunCreated(run);
+      }
+      onClose();
+      navigate(`/play-test/${test.id}/run/${run.id}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const continueRun = () => {
+    if (!test || !selectedRunId) return;
+    onClose();
+    navigate(`/play-test/${test.id}/run/${selectedRunId}`);
+  };
+
+  const handlePrimaryAction = async () => {
+    if (entryMode === "continue") {
+      continueRun();
+      return;
+    }
+    await startNewRun();
   };
 
   if (!isOpen || !test) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content start-run-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content start-run-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button className="modal-close" onClick={onClose}>
           &times;
         </button>
         <div className="modal-header">
-          <h2 className="modal-title">Start Run: {test.title}</h2>
+          <h2 className="modal-title">Run Setup: {test.title}</h2>
           <p className="modal-description">
-            Choose how to set up the search window for this run.
+            Continue an existing run or create a new run with a fixed method.
           </p>
         </div>
 
-        <div className="run-mode-options">
+        <div className="entry-mode-switch">
           <label className="run-mode-option">
             <input
               type="radio"
-              name="pretest_mode"
-              value="run"
-              checked={mode === "run"}
-              onChange={() => setMode("run")}
+              name="entry_mode"
+              value="continue"
+              checked={entryMode === "continue"}
+              onChange={() => setEntryMode("continue")}
             />
             <div className="run-mode-label">
-              <strong>Run Pretest</strong>
-              <span>
-                Automatically find the performance transition zone through a
-                cutting search.
-              </span>
+              <strong>Continue Existing Run</strong>
+              <span>Select one of this test's runs and continue it.</span>
             </div>
           </label>
-
           <label className="run-mode-option">
             <input
               type="radio"
-              name="pretest_mode"
-              value="reuse_last"
-              checked={mode === "reuse_last"}
-              onChange={() => setMode("reuse_last")}
+              name="entry_mode"
+              value="create"
+              checked={entryMode === "create"}
+              onChange={() => setEntryMode("create")}
             />
             <div className="run-mode-label">
-              <strong>Reuse Last Pretest</strong>
-              <span>
-                Reuse the latest completed pretest bounds from another test.
-              </span>
-              <select
-                value={reuseTestId ?? test.id}
-                onChange={(e) => setReuseTestId(parseInt(e.target.value, 10))}
-                className="form-input"
-              >
-                {reuseCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.title}
-                  </option>
-                ))}
-              </select>
-              {reusableBounds ? (
-                <span className="bounds-preview">
-                  Size: {reusableBounds.size_min?.toFixed(1)} -{" "}
-                  {reusableBounds.size_max?.toFixed(1)}, Sat:{" "}
-                  {reusableBounds.saturation_min?.toFixed(3)} -{" "}
-                  {reusableBounds.saturation_max?.toFixed(3)}
-                </span>
-              ) : (
-                <span>No reusable pretest bounds available for this source test.</span>
-              )}
-            </div>
-          </label>
-
-          <label className="run-mode-option">
-            <input
-              type="radio"
-              name="pretest_mode"
-              value="manual"
-              checked={mode === "manual"}
-              onChange={() => setMode("manual")}
-            />
-            <div className="run-mode-label">
-              <strong>Manual Bounds</strong>
-              <span>Specify the search window manually.</span>
+              <strong>Create New Run</strong>
+              <span>Define run name and methodology for a new run.</span>
             </div>
           </label>
         </div>
 
-        {mode === "manual" && (
-          <div className="manual-bounds-form">
-            <div className="bounds-row">
-              <div className="bounds-field">
-                <label>Size Min</label>
-                <input
-                  type="number"
-                  value={manualBounds.pretest_size_min}
-                  onChange={(e) =>
-                    setManualBounds({
-                      ...manualBounds,
-                      pretest_size_min: e.target.value,
-                    })
-                  }
-                />
+        {entryMode === "continue" && (
+          <div className="run-config-section">
+            <label className="config-label">Existing Run</label>
+            {existingRuns.length > 0 ? (
+              <select
+                value={selectedRunId ?? ""}
+                onChange={(e) => setSelectedRunId(parseInt(e.target.value, 10))}
+                className="form-input"
+              >
+                {existingRuns.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    #{run.id} {run.name || "(unnamed)"} | {run.method} | {run.status}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="empty-run-note">No runs available to continue.</div>
+            )}
+            {selectedRun && (
+              <div className="bounds-preview">
+                Method: {selectedRun.method} | Status: {selectedRun.status}
               </div>
-              <div className="bounds-field">
-                <label>Size Max</label>
-                <input
-                  type="number"
-                  value={manualBounds.pretest_size_max}
-                  onChange={(e) =>
-                    setManualBounds({
-                      ...manualBounds,
-                      pretest_size_max: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
-            <div className="bounds-row">
-              <div className="bounds-field">
-                <label>Saturation Min</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={manualBounds.pretest_saturation_min}
-                  onChange={(e) =>
-                    setManualBounds({
-                      ...manualBounds,
-                      pretest_saturation_min: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="bounds-field">
-                <label>Saturation Max</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={manualBounds.pretest_saturation_max}
-                  onChange={(e) =>
-                    setManualBounds({
-                      ...manualBounds,
-                      pretest_saturation_max: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
+            )}
           </div>
+        )}
+
+        {entryMode === "create" && (
+          <>
+            <div className="run-config-section">
+              <label className="config-label">Run Name</label>
+              <input
+                type="text"
+                value={runName}
+                onChange={(e) => setRunName(e.target.value)}
+                className="form-input"
+                placeholder="Enter unique run name"
+              />
+            </div>
+
+            <div className="run-mode-options">
+              <label className="run-mode-option">
+                <input
+                  type="radio"
+                  name="run_method"
+                  value="adaptive_rectangles"
+                  checked={method === "adaptive_rectangles"}
+                  onChange={() => setMethod("adaptive_rectangles")}
+                />
+                <div className="run-mode-label">
+                  <strong>Adaptive Rectangles</strong>
+                  <span>Current rectangle-based method (with pretest options).</span>
+                </div>
+              </label>
+
+              <label className="run-mode-option">
+                <input
+                  type="radio"
+                  name="run_method"
+                  value="axis_logistic"
+                  checked={method === "axis_logistic"}
+                  onChange={() => setMethod("axis_logistic")}
+                />
+                <div className="run-mode-label">
+                  <strong>Axis Logistic</strong>
+                  <span>1D axis sampling with logistic psychometric fitting.</span>
+                </div>
+              </label>
+
+              <label className="run-mode-option">
+                <input
+                  type="radio"
+                  name="run_method"
+                  value="axis_isotonic"
+                  checked={method === "axis_isotonic"}
+                  onChange={() => setMethod("axis_isotonic")}
+                />
+                <div className="run-mode-label">
+                  <strong>Axis Isotonic</strong>
+                  <span>1D axis sampling with monotone isotonic fitting.</span>
+                </div>
+              </label>
+            </div>
+
+            {method === "adaptive_rectangles" && (
+              <>
+                <div className="run-config-section">
+                  <label className="config-label">Adaptive Setup</label>
+                  <div className="run-mode-options">
+                    <label className="run-mode-option">
+                      <input
+                        type="radio"
+                        name="adaptive_setup"
+                        value="run"
+                        checked={adaptiveMode === "run"}
+                        onChange={() => setAdaptiveMode("run")}
+                      />
+                      <div className="run-mode-label">
+                        <strong>Run Pretest</strong>
+                        <span>Run cutting pretest then continue to main phase.</span>
+                      </div>
+                    </label>
+                    <label className="run-mode-option">
+                      <input
+                        type="radio"
+                        name="adaptive_setup"
+                        value="reuse_last"
+                        checked={adaptiveMode === "reuse_last"}
+                        onChange={() => setAdaptiveMode("reuse_last")}
+                      />
+                      <div className="run-mode-label">
+                        <strong>Reuse Last Pretest</strong>
+                        <span>Reuse pretest bounds from another test.</span>
+                        <select
+                          value={reuseTestId ?? test.id}
+                          onChange={(e) =>
+                            setReuseTestId(parseInt(e.target.value, 10))
+                          }
+                          className="form-input"
+                        >
+                          {reuseCandidates.map((candidate) => (
+                            <option key={candidate.id} value={candidate.id}>
+                              {candidate.title}
+                            </option>
+                          ))}
+                        </select>
+                        {reusableBounds ? (
+                          <span className="bounds-preview">
+                            Size: {reusableBounds.size_min?.toFixed(1)} -{" "}
+                            {reusableBounds.size_max?.toFixed(1)}, Sat:{" "}
+                            {reusableBounds.saturation_min?.toFixed(3)} -{" "}
+                            {reusableBounds.saturation_max?.toFixed(3)}
+                          </span>
+                        ) : (
+                          <span>
+                            No reusable pretest bounds available for this source test.
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                    <label className="run-mode-option">
+                      <input
+                        type="radio"
+                        name="adaptive_setup"
+                        value="manual"
+                        checked={adaptiveMode === "manual"}
+                        onChange={() => setAdaptiveMode("manual")}
+                      />
+                      <div className="run-mode-label">
+                        <strong>Manual Bounds</strong>
+                        <span>Specify search bounds manually.</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {adaptiveMode === "manual" && (
+                  <div className="manual-bounds-form">
+                    <div className="bounds-row">
+                      <div className="bounds-field">
+                        <label>Size Min</label>
+                        <input
+                          type="number"
+                          value={manualBounds.pretest_size_min}
+                          onChange={(e) =>
+                            setManualBounds({
+                              ...manualBounds,
+                              pretest_size_min: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="bounds-field">
+                        <label>Size Max</label>
+                        <input
+                          type="number"
+                          value={manualBounds.pretest_size_max}
+                          onChange={(e) =>
+                            setManualBounds({
+                              ...manualBounds,
+                              pretest_size_max: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="bounds-row">
+                      <div className="bounds-field">
+                        <label>Saturation Min</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={manualBounds.pretest_saturation_min}
+                          onChange={(e) =>
+                            setManualBounds({
+                              ...manualBounds,
+                              pretest_saturation_min: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="bounds-field">
+                        <label>Saturation Max</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={manualBounds.pretest_saturation_max}
+                          onChange={(e) =>
+                            setManualBounds({
+                              ...manualBounds,
+                              pretest_saturation_max: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {method !== "adaptive_rectangles" && (
+              <div className="run-config-section">
+                <label className="config-label">Axis Switch Policy</label>
+                <select
+                  value={axisSwitchPolicy}
+                  onChange={(e) => setAxisSwitchPolicy(e.target.value)}
+                  className="form-input"
+                >
+                  <option value="uncertainty">Uncertainty-first</option>
+                  <option value="alternate">Alternate axes</option>
+                </select>
+              </div>
+            )}
+          </>
         )}
 
         {error && <p className="error-message">{error}</p>}
@@ -370,10 +523,21 @@ function StartRunModal({ isOpen, onClose, test, onRunCreated }) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={handleStart}
-            disabled={loading || (mode === "reuse_last" && !canReuse)}
+            onClick={handlePrimaryAction}
+            disabled={
+              loading ||
+              (entryMode === "continue" && !canContinue) ||
+              (entryMode === "create" &&
+                method === "adaptive_rectangles" &&
+                adaptiveMode === "reuse_last" &&
+                !canReuse)
+            }
           >
-            {loading ? "Starting..." : "Start Run"}
+            {loading
+              ? "Working..."
+              : entryMode === "continue"
+              ? "Continue Run"
+              : "Create Run"}
           </button>
         </div>
       </div>

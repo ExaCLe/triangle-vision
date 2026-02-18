@@ -402,3 +402,42 @@ input:checked + .slider:before {
   padding: 0;
   font-size: 0.75rem;
 }
+
+.run-analysis-controls {
+  justify-content: flex-start;
+  margin-bottom: 1rem;
+}
+
+.run-analysis-controls select,
+.run-analysis-controls input[type="number"] {
+  min-width: 220px;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.run-analysis-controls input[type="number"] {
+  min-width: 72px;
+}
+
+.curve-meta {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.run-curve-svg {
+  width: 100%;
+  max-width: 700px;
+  background: var(--background-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.curve-axis-label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}

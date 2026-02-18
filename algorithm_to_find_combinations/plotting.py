@@ -131,7 +131,13 @@ def compute_knn_smooth(df, triangle_size_bounds, saturation_bounds, k=None):
     return X, Y, Z_knn, k
 
 
-def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, params):
+def compute_soft_brush_smooth(
+    df,
+    triangle_size_bounds,
+    saturation_bounds,
+    params,
+    steps=100,
+):
     values = df["success_float"].values
     points = df[["triangle_size", "saturation"]].values
 
@@ -156,8 +162,8 @@ def compute_soft_brush_smooth(df, triangle_size_bounds, saturation_bounds, param
     )
 
     # Create grid in original space
-    grid_x = np.linspace(triangle_min, triangle_max, 100)
-    grid_y = np.linspace(saturation_min, saturation_max, 100)
+    grid_x = np.linspace(triangle_min, triangle_max, steps)
+    grid_y = np.linspace(saturation_min, saturation_max, steps)
     X, Y = np.meshgrid(grid_x, grid_y)
     grid_points = np.column_stack([X.ravel(), Y.ravel()])
 

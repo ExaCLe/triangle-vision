@@ -164,6 +164,10 @@ body {
   opacity: 0.4;
 }
 
+body.playtest-active .app::before {
+  display: none;
+}
+
 /* ═══ Layout ═══ */
 
 .container {

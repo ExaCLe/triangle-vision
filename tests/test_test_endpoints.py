@@ -199,6 +199,8 @@ def test_delete_test_with_related_run_and_combination(client: TestClient):
         "/api/runs/",
         json={
             "test_id": test_id,
+            "name": "delete-run",
+            "method": "adaptive_rectangles",
             "pretest_mode": "manual",
             "pretest_size_min": 100.0,
             "pretest_size_max": 200.0,

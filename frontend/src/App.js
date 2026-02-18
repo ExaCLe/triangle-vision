@@ -7,6 +7,8 @@ import PlayTest from "./components/PlayTest";
 import TestVisualization from "./components/TestVisualization";
 import StartRunModal from "./components/StartRunModal";
 import SettingsPage from "./components/SettingsPage";
+import ModelExplorer from "./components/ModelExplorer";
+import TuningPage from "./components/TuningPage";
 import DeleteConfirmModal from "./components/DeleteConfirmModal";
 import Toast from "./components/Toast";
 import "./css/App.css";
@@ -25,6 +27,14 @@ function App() {
   const [testPendingDelete, setTestPendingDelete] = useState(null);
   const [isDeletingTest, setIsDeletingTest] = useState(false);
   const [toast, setToast] = useState(null);
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/settings/pretest")
+      .then((r) => r.json())
+      .then((data) => setSimulationEnabled(!!data?.simulation?.enabled))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -178,6 +188,7 @@ function App() {
               setModalMode("create");
               setIsTestModalOpen(true);
             }}
+            simulationEnabled={simulationEnabled}
           />
           <Routes>
             <Route
@@ -216,7 +227,9 @@ function App() {
             <Route path="/custom-test" element={<CustomTest />} />
             <Route path="/play-test/:testId" element={<PlayTest />} />
             <Route path="/play-test/:testId/run/:runId" element={<PlayTest />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<SettingsPage onSimulationChange={setSimulationEnabled} />} />
+            <Route path="/model-explorer" element={<ModelExplorer />} />
+            <Route path="/tuning" element={<TuningPage />} />
             <Route
               path="/test-visualization/:testId"
               element={<TestVisualization />}

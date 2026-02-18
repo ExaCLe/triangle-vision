@@ -75,6 +75,12 @@
   background: var(--accent-subtle);
 }
 
+.nav-link.disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
